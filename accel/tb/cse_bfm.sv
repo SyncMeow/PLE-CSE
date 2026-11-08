@@ -42,12 +42,14 @@ module cse_bfm
     int cx, cy, cz, rq;
     longint unsigned due;
     bit killed;
+    int idx;                                         // query number (for ERROR injection)
   } ent_t;
   ent_t cq[$];
   longint unsigned cyc = 0;
   int nq = 0, nkilled = 0, nhit = 0;
   int maxlat = MAXLAT;                                 // the testbench may change these at run time
   int rdy_pct = 75;
+  int err_at = -1;                                     // query number answered ERROR (-1: none)
 
   assign cse_err = 1'b0;
   always_comb cse_idle = (cq.size() == 0) && !r_valid;
@@ -62,7 +64,7 @@ module cse_bfm
       if (k_valid && k_ready) foreach (cq[i]) if (k_all || cq[i].tag == k_tag) cq[i].killed = 1;
       if (q_valid && q_ready) begin
         cq.push_back('{q_tag, q_user, q_kill_on_hit, int'(q_cx), int'(q_cy), int'(q_cz), int'(q_r),
-                       cyc + 1 + 64'($urandom % maxlat), 1'b0});
+                       cyc + 1 + 64'($urandom % maxlat), 1'b0, nq});
         nq++;
       end
       if (r_valid && r_ready) r_valid <= 1'b0;
@@ -75,7 +77,8 @@ module cse_bfm
           logic [1:0] st;
           e = cq[pick];
           cq.delete(pick);
-          if (e.killed && ($urandom % 2)) begin st = ST_KILLED; nkilled++; end
+          if (e.idx == err_at) st = ST_ERROR;
+          else if (e.killed && ($urandom % 2)) begin st = ST_KILLED; nkilled++; end
           else begin
             st = fx_ref_cse(e.cx, e.cy, e.cz, e.rq) ? ST_HIT : ST_MISS;
             nhit += int'(st == ST_HIT);

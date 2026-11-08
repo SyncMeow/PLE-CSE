@@ -95,7 +95,9 @@ module ple_evu
   assign qd_pv     = c_qd && !bad;
   assign busy      = (state != S_IDLE);
 
-  wire collide_now = (scu_done && scu_coll) || (pd_valid && pd_hit) || qd_err;
+  // QD clears env_err of the last edge one cycle after qd_start: ignore it in that cycle
+  wire qd_err_now  = qd_err && !qd_start;
+  wire collide_now = (scu_done && scu_coll) || (pd_valid && pd_hit) || qd_err_now;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -130,13 +132,13 @@ module ple_evu
             bad <= 1'b1; rkg_kill <= 1'b1; qd_kill <= 1'b1; c_scu <= 1'b0; c_qd <= 1'b0; fku_go <= 1'b0;
             state <= S_DRAIN;
           end
-          if (qd_err) err_seen <= 1'b1;
+          if (qd_err_now) err_seen <= 1'b1;
           // decisions
           if (state == S_RUN && !bad && !collide_now && scu_ok == total && qd_ok == total) begin
             edge_ok <= 1'b1; env_err <= 1'b0; done <= 1'b1; state <= S_IDLE;
           end
           if (state == S_DRAIN && !fku_busy && !fku_go && !fku_start && !scu_busy && !rkg_busy) begin
-            edge_ok <= 1'b0; env_err <= err_seen || qd_err; done <= 1'b1; state <= S_IDLE;
+            edge_ok <= 1'b0; env_err <= err_seen || qd_err_now; done <= 1'b1; state <= S_IDLE;
           end
         end
         default: state <= S_IDLE;

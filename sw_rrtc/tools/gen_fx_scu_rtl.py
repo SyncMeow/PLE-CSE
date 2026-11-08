@@ -74,6 +74,8 @@ def main():
     o.append(f'// {S} lanes; {NO} outer entries then the entries of the hit outer pairs only ({NE} entries in all);')
     o.append('// the first inner hit ends the check. c is latched at start, so the producer may move on.')
     o.append('// start is accepted only while busy = 0 (busy falls one cycle after done).')
+    o.append('// Thresholds include the FK error margin FX_DELTA_FK_MM of fx_dump_scu; a run with another delta needs a')
+    o.append('// regenerated SCU.')
     o.append('module ple_scu (')
     o.append('    input  logic                     clk,')
     o.append('    input  logic                     rst_n,')

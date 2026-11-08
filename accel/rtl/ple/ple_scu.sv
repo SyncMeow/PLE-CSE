@@ -4,6 +4,8 @@
 // 8 lanes; 4 outer entries then the entries of the hit outer pairs only (153 entries in all);
 // the first inner hit ends the check. c is latched at start, so the producer may move on.
 // start is accepted only while busy = 0 (busy falls one cycle after done).
+// Thresholds include the FK error margin FX_DELTA_FK_MM of fx_dump_scu; a run with another delta needs a
+// regenerated SCU.
 module ple_scu (
     input  logic                     clk,
     input  logic                     rst_n,

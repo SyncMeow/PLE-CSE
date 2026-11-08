@@ -75,6 +75,7 @@ module tb_scu;
 
   initial begin
     shortint qq[7];
+    int full_range = 0;
     int cc[210];
     repeat (3) @(posedge clk);
     rst_n = 1'b1;
@@ -103,8 +104,27 @@ module tb_scu;
         run(cc, 1);
       end
     end
-    $display("TB_SCU poses=%0d self_collisions=%0d boundary=%0d (exact d2 %0d, hits %0d) latency=%0d..%0d busy_starts=%0d errors=%0d",
-             poses, hits, bnd, exact, bnd_hits, lat_min, lat_max, busy_starts, errs);
+    // full s18 range: uniform, clusters around a random base, and the extreme values (signed widths)
+    for (int i = 0; i < 6000; ++i) begin
+      int base[3], m;
+      m = i % 3;
+      for (int k = 0; k < 3; ++k) base[k] = int'($urandom % 262144) - 131072;
+      for (int sp = 0; sp < 70; ++sp)
+        for (int k = 0; k < 3; ++k) begin
+          int v;
+          if (m == 0) v = int'($urandom % 262144) - 131072;
+          else if (m == 1) begin
+            v = base[k] + int'($urandom % 4001) - 2000;
+            if (v > 131071) v = 131071;
+            if (v < -131072) v = -131072;
+          end else v = ($urandom % 2) ? 131071 : -131072;
+          cc[3 * sp + k] = v;
+        end
+      run(cc, 0);
+      full_range++;
+    end
+    $display("TB_SCU poses=%0d self_collisions=%0d boundary=%0d (exact d2 %0d, hits %0d) full_range=%0d latency=%0d..%0d busy_starts=%0d errors=%0d",
+             poses, hits, bnd, exact, bnd_hits, full_range, lat_min, lat_max, busy_starts, errs);
     if (errs != 0) $fatal(1, "TB_SCU FAIL");
     $finish;
   end

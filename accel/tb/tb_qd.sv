@@ -53,9 +53,10 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
     int cx, cy, cz, rq;
     longint unsigned due;
     bit killed;
+    int forced;                                      // >= 0: answer already decided (a delayed auto-kill HIT)
   } ent_t;
   ent_t cq[$];
-  int nq = 0, nkilled = 0;
+  int nq = 0, nkilled = 0, n_late_hit = 0, n_err = 0, kstall = 0, n_kstall = 0;
   assign cse_err = 1'b0;
   always_comb cse_idle = (cq.size() == 0) && !r_valid;
   always_ff @(posedge clk) begin
@@ -63,11 +64,14 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
       q_ready <= 1'b0; k_ready <= 1'b0; r_valid <= 1'b0; r_tag <= '0; r_user <= '0; r_status <= '0;
     end else begin
       q_ready <= ($urandom % 100) < 75;
-      k_ready <= ($urandom % 100) < 70;
+      // K: random stalls, and rare long ones (a second edge can be killed while K of the first waits)
+      if (kstall > 0) kstall <= kstall - 1;
+      else if (($urandom % 3000) == 0) begin kstall <= 200 + int'($urandom % 1500); n_kstall++; end
+      k_ready <= (kstall == 0) && (($urandom % 100) < 70);
       if (k_valid && k_ready) foreach (cq[i]) if (k_all || cq[i].tag == k_tag) cq[i].killed = 1;
       if (q_valid && q_ready) begin
         cq.push_back('{q_tag, q_user, q_kill_on_hit, int'(q_cx), int'(q_cy), int'(q_cz), int'(q_r),
-                       cyc + 1 + 64'($urandom % 40), 1'b0});
+                       cyc + 1 + 64'($urandom % 40), 1'b0, -1});
         nq++;
       end
       if (r_valid && r_ready) r_valid <= 1'b0;
@@ -78,14 +82,37 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
           ent_t e = cq[pick];
           logic [1:0] st;
           cq.delete(pick);
-          if (e.killed && ($urandom % 2)) begin st = ST_KILLED; nkilled++; end
+          if (e.forced >= 0) st = 2'(e.forced);
+          else if (e.killed && ($urandom % 2)) begin st = ST_KILLED; nkilled++; end
           else begin
             st = fx_ref_cse(e.cx, e.cy, e.cz, e.rq) ? ST_HIT : ST_MISS;
             if (AK && e.koh && st == ST_HIT) foreach (cq[i]) if (cq[i].tag == e.tag) cq[i].killed = 1;
+            // ERROR injection on a MISS (pose results unchanged): QD must raise env_err
+            if (st == ST_MISS && ($urandom % 4000) == 0) begin st = ST_ERROR; n_err++; end
           end
-          r_valid <= 1'b1; r_tag <= e.tag; r_user <= e.user; r_status <= st;
+          // auto-kill: half the HITs are answered after the KILLED answers they caused
+          if (AK && e.koh && st == ST_HIT && e.forced < 0 && ($urandom % 2)) begin
+            e.forced = int'(ST_HIT); e.due = cyc + 1 + 64'($urandom % 80); cq.push_back(e); n_late_hit++;
+          end else begin
+            r_valid <= 1'b1; r_tag <= e.tag; r_user <= e.user; r_status <= st;
+          end
         end
       end
+    end
+  end
+
+  // ---------------------------------------------------------------- env_err and K checks
+  int err_miss = 0, k_errs = 0, n_kills_seen = 0;
+  bit chk_err = 1'b0, dead_q = 1'b0;
+  logic [TAG_W-1:0] k_exp[$];
+  always @(posedge clk) if (rst_n) begin
+    if (chk_err && !env_err) err_miss++;            // env_err must follow an ERROR answer
+    chk_err <= r_valid && r_ready && r_status == ST_ERROR && !edge_start;
+    dead_q <= u_qd.dead;
+    if (u_qd.dead && !dead_q) begin k_exp.push_back(TAG_W'(u_qd.cur_tag)); n_kills_seen++; end
+    if (k_valid && k_ready) begin
+      if (k_exp.size() == 0) k_errs++;
+      else begin if (k_exp[0] != k_tag) k_errs++; void'(k_exp.pop_front()); end
     end
   end
 
@@ -190,8 +217,14 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
     repeat (2) @(negedge clk);
     if (u_chk.errors != 0) begin $display("ERROR interface checker reported %0d errors", u_chk.errors); errs++; end
     if (after_kill != 0) begin $display("ERROR %0d results after an external kill", after_kill); errs++; end
-    $display("TB_QD flat=%0d auto_kill=%0d envs=%0d edges=%0d (free %0d, env hit %0d, killed %0d) poses=%0d queries=%0d killed_answers=%0d hits_reported=%0d free_reported=%0d errors=%0d",
-             FLAT, AK, envs, edges, free_edges, hit_edges, ext_kills, poses_fed, nq, nkilled, pd_hits, pd_oks, errs);
+    if (err_miss != 0) begin $display("ERROR %0d ERROR answers without env_err", err_miss); errs++; end
+    if (k_errs != 0 || k_exp.size() != 0) begin
+      $display("ERROR K mismatch: %0d wrong or extra, %0d kills never sent", k_errs, k_exp.size()); errs++;
+    end
+    if (AK && n_late_hit == 0) begin $display("ERROR no delayed auto-kill HIT was exercised"); errs++; end
+    if (n_err == 0 || n_kstall == 0) begin $display("ERROR ERROR injection or K stalls not exercised"); errs++; end
+    $display("TB_QD flat=%0d auto_kill=%0d envs=%0d edges=%0d (free %0d, env hit %0d, killed %0d) poses=%0d queries=%0d killed_answers=%0d hits_reported=%0d free_reported=%0d late_hits=%0d errors_injected=%0d k_stalls=%0d kills=%0d errors=%0d",
+             FLAT, AK, envs, edges, free_edges, hit_edges, ext_kills, poses_fed, nq, nkilled, pd_hits, pd_oks, n_late_hit, n_err, n_kstall, n_kills_seen, errs);
     if (errs != 0) $fatal(1, "TB_QD FAIL");
     $finish;
   end

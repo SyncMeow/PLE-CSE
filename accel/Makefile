@@ -17,15 +17,16 @@ FXLIB_SRC := $(FXDIR)/fx_ref.c $(FXDIR)/fx_env.c $(FXDIR)/fx_ref_stub.c $(SRCDIR
 DPI     := -LDFLAGS $(FXLIB) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
 
-.PHONY: lint test-checker test-env-mem test-ple-unit test-ple-mutants clean
+.PHONY: lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
 
 # every RTL file must lint clean
 lint:
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_top.sv --top-module cse_top
-	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_top.sv --top-module ple_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_env_mem.sv --top-module cse_env_mem
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_robot_pkg.sv rtl/ple/ple_qd.sv --top-module ple_qd
 	$(VERI) --lint-only $(VFLAGS) $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv --top-module ple_evu
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CORE_RTL) --top-module ple_core
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv --top-module ple_top
 	@for m in ple_smp ple_tree ple_nnu ple_rkg ple_isqrt ple_div7 ple_fku ple_scu; do $(VERI) --lint-only $(VFLAGS) $(PLE_PKG) rtl/ple/$$m.sv --top-module $$m || exit 1; done
 	$(VERI) --lint-only $(VFLAGS) -Wno-BLKSEQ $(PKG) tb/ple_cse_if_checker.sv --top-module ple_cse_if_checker
 
@@ -63,6 +64,14 @@ test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem
 	@$(BUILD)/tb_env_mem_small/V +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem_small > /dev/null
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem_small/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "depth 512/8192 buf0 $$f OK" || echo "depth 512/8192 buf0 $$f DIFF"; done
+
+SMALL_DEF := -DFX_NODE_CAP=32 -DFX_PATH_CAP=8
+FXLIB_SMALL := $(BUILD)/libfxref_small.a
+DPI_SMALL := -LDFLAGS $(FXLIB_SMALL) -LDFLAGS -lm
+$(FXLIB_SMALL): $(FXLIB_SRC) $(wildcard $(FXDIR)/*.c) $(wildcard $(FXDIR)/*.h) $(wildcard $(SRCDIR)/*.h)
+	@mkdir -p $(BUILD)/fxlib_small
+	cd $(BUILD)/fxlib_small && for f in $(FXLIB_SRC); do gcc -O2 -std=gnu11 -ffp-contract=off -fPIC $(SMALL_DEF) -I$(FXDIR) -I$(SRCDIR) -c $$f || exit 1; done
+	rm -f $@ && ar rcs $@ $(BUILD)/fxlib_small/*.o
 
 $(FXLIB): $(FXLIB_SRC) $(wildcard $(FXDIR)/*.c) $(wildcard $(FXDIR)/*.h) $(wildcard $(SRCDIR)/*.h)
 	@mkdir -p $(BUILD)/fxlib
@@ -132,6 +141,37 @@ $(BUILD)/tb_evu%/Vtb_evu: $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv $(EVU_TB) $(FXLIB
 	$(VERI) $(TBFLAGS) -Mdir $(dir $@) $(if $(findstring flat,$*),-GFLAT=1) $(if $(findstring ak,$*),-GAK=1) \
 	    --top-module tb_evu $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv $(EVU_TB) $(DPI) -o Vtb_evu >/dev/null
 
+CORE_RTL := $(EVU_RTL) rtl/ple/ple_smp.sv rtl/ple/ple_tree.sv rtl/ple/ple_nnu.sv rtl/ple/ple_isqrt.sv rtl/ple/ple_div7.sv \
+            rtl/ple/ple_evu.sv rtl/ple/ple_core.sv
+CORE_TB  := tb/cse_bfm.sv tb/ple_cse_if_checker.sv tb/tb_core.sv
+$(BUILD)/tb_core%/Vtb_core: $(PKG) $(CORE_RTL) $(CORE_TB) $(FXLIB)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) $(if $(findstring flat,$*),-GFLAT=1) $(if $(findstring ak,$*),-GAK=1) $(if $(findstring big,$*),-GRANGE=67108864) \
+	    --top-module tb_core $(PKG) $(CORE_RTL) $(CORE_TB) $(DPI) -o Vtb_core >/dev/null
+
+# tree of 32 nodes, path of 8 (golden paths of exactly 8 and of 9-20 nodes occur): FAIL_CAPACITY (tree full, path too long) against a golden library built the same way
+$(BUILD)/tb_core_small/Vtb_core: $(PKG) $(CORE_RTL) $(CORE_TB) $(FXLIB_SMALL)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) -GCAP=32 -GPCAP=8 --top-module tb_core $(PKG) $(CORE_RTL) $(CORE_TB) $(DPI_SMALL) -o Vtb_core >/dev/null
+
+# whole planner against complete golden runs (14 problems x 2 seeds; flat / auto-kill / 4x range: 6 problems x 1 seed;
+# small: 14 x 2 with 32 nodes / 8 path nodes); each also runs FAIL_ITER and ENV_ERR cases
+test-ple-core: $(BUILD)/tb_core_h/Vtb_core $(BUILD)/tb_core_flat/Vtb_core $(BUILD)/tb_core_ak/Vtb_core $(BUILD)/tb_core_big/Vtb_core $(BUILD)/tb_core_small/Vtb_core
+	$(BUILD)/tb_core_h/Vtb_core > $(BUILD)/tb_core_h/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_h/run.log; exit $$rc
+	$(BUILD)/tb_core_flat/Vtb_core +probs=6 +seeds=1 > $(BUILD)/tb_core_flat/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_flat/run.log; exit $$rc
+	$(BUILD)/tb_core_ak/Vtb_core +probs=6 +seeds=1 > $(BUILD)/tb_core_ak/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_ak/run.log; exit $$rc
+	$(BUILD)/tb_core_big/Vtb_core +probs=6 +seeds=1 > $(BUILD)/tb_core_big/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_big/run.log; exit $$rc
+	$(BUILD)/tb_core_small/Vtb_core > $(BUILD)/tb_core_small/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_small/run.log; exit $$rc
+
+TOP_TB := tb/cse_bfm.sv tb/ple_cse_if_checker.sv tb/tb_top.sv
+$(BUILD)/tb_top/Vtb_top: $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv $(TOP_TB) $(FXLIB)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) --top-module tb_top $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv $(TOP_TB) $(DPI) -o Vtb_top >/dev/null
+
+# PLE top through AXI-Lite: register map, interrupt, abort, results and path vs golden
+test-ple-top: $(BUILD)/tb_top/Vtb_top
+	$(BUILD)/tb_top/Vtb_top > $(BUILD)/tb_top/run.log; rc=$$?; grep -E 'TB_TOP|ERROR' $(BUILD)/tb_top/run.log; exit $$rc
+
 test-ple-unit: $(BUILD)/tb_evu_h/Vtb_evu $(BUILD)/tb_evu_flat/Vtb_evu $(BUILD)/tb_evu_ak/Vtb_evu $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_ak/Vtb_qd $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
@@ -174,15 +214,35 @@ test-ple-mutants:
 	@for m in fku_m1 fku_m2 fku_m3 fku_m4 fku_m5 fku_m6 fku_m7 fku_m8 fku_m9 fku_m10; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_fku $(PLE_PKG) $(MUT)/$$m.sv tb/tb_fku.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_FKU|overflows' $(MUT)/$$m.log)"; fi; done
-	@for m in scu_m1 scu_m2 scu_m3 scu_m4; do \
+	@for m in scu_m1 scu_m2 scu_m3 scu_m4 scu_m5 scu_m6; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_scu $(PLE_PKG) $(MUT)/$$m.sv tb/tb_scu.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 TB_SCU $(MUT)/$$m.log)"; fi; done
-	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5; do \
+	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5 qd_m6 qd_m7 qd_m8 qd_m9 qd_m10 qd_m11 qd_m13; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_qd $(QD_SRC) $(MUT)/$$m.sv $(QD_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 600 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_QD|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
+	@for m in qd_m12; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m -GAK=1 --top-module tb_qd $(QD_SRC) $(MUT)/$$m.sv $(QD_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 600 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_QD|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
 	@for m in evu_m1 evu_m2 evu_m3 evu_m4; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_evu $(PKG) $(EVU_RTL) $(MUT)/$$m.sv $(EVU_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_EVU|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
+	$(MAKE) $(FXLIB_SMALL)
+	@for m in core_m1 core_m2 core_m3 core_m4 core_m5 core_m6 core_m7 core_m8 core_m9 core_m11; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$${m}_big -GRANGE=67108864 --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$${m}_small -GCAP=32 -GPCAP=8 --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI_SMALL) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$${m}_big/V +probs=6 +seeds=1 > $(MUT)/$$m.log 2>&1 && timeout 900 $(MUT)/$${m}_small/V >> $(MUT)/$$m.log 2>&1 && \
+	     timeout 900 $(MUT)/$$m/V >> $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; \
+	  else echo "$$m killed: $$(grep -m1 -E 'TB_CORE|ERROR|stuck' $(MUT)/$$m.log)"; fi; done
+	@for m in top_m1 top_m2 top_m3 top_m4 top_m5 top_m6 top_m7 top_m8 top_m9; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_top $(PKG) $(CORE_RTL) $(MUT)/$$m.sv $(TOP_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$$m/V +probs=2 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_TOP|ERROR' $(MUT)/$$m.log)"; fi; done
+	@for m in corev_m1; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_evu.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$$m/V +probs=1 +seeds=1 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_CORE|ERROR' $(MUT)/$$m.log)"; fi; done
+	@for m in topc_m1; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_top $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv rtl/ple/ple_top.sv $(TOP_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$$m/V +probs=2 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_TOP|ERROR' $(MUT)/$$m.log)"; fi; done
 
 clean:
 	rm -rf $(BUILD)

@@ -129,6 +129,34 @@ int fx_ref_edge_ok(const short *start, const int *vec, long long len_h, int *pos
     return ok;
 }
 
+// ---- CORE: a whole golden planning run on problem i (environment from fx_ref_env_load)
+// stats: status, iterations, size_start, size_goal, dd_rejects, edges, nn_queries, path_len
+// sg: start[7], goal[7]; shift: Halton rotation the CPU would write; path: path_len x 7
+int fx_ref_solve(int i, int seed, int max_iter, int range_h, int *stats, short *sg, int *shift, short *path)
+{
+    static fx_result_t r;
+    fx_settings_t s;
+    int16_t qs[FX_DIM], qg[FX_DIM];
+    fx_default_settings(&s);
+    s.range_h = (uint32_t)range_h;
+    s.seed = (uint32_t)seed;
+    s.max_iterations = (uint32_t)max_iter;
+    for (int j = 0; j < FX_DIM; ++j) {
+        qs[j] = fx_q_from_float(problems[i].start[j]);
+        qg[j] = fx_q_from_float(problems[i].goal[j]);
+        sg[j] = qs[j];
+        sg[FX_DIM + j] = qg[j];
+    }
+    smp_reset((uint32_t)seed);
+    for (int j = 0; j < FX_DIM; ++j) shift[j] = (int)h_shift[j];
+    fx_solve(qs, qg, &s, fx_pose_ok, &r);
+    stats[0] = r.status; stats[1] = (int)r.iterations; stats[2] = (int)r.size_start; stats[3] = (int)r.size_goal;
+    stats[4] = (int)r.dd_rejects; stats[5] = (int)r.edges; stats[6] = (int)r.nn_queries; stats[7] = (int)r.path_len;
+    for (uint32_t p = 0; p < r.path_len; ++p)
+        for (int j = 0; j < FX_DIM; ++j) path[p * FX_DIM + j] = r.path[p][j];
+    return r.status;
+}
+
 // ---- ALU: the golden exact-integer helpers
 unsigned long long fx_ref_isqrt(unsigned long long v) { return fx_isqrt(v); }
 long long fx_ref_fdiv(long long a, long long b) { return fx_fdiv(a, b); }

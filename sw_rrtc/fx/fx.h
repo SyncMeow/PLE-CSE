@@ -10,7 +10,9 @@
 #ifndef FX_NODE_CAP                           // nodes per tree; must equal the RTL ple_tree CAP
 #define FX_NODE_CAP   1024
 #endif
+#ifndef FX_PATH_CAP                           // path nodes; must equal the RTL ple_core PATH_CAP
 #define FX_PATH_CAP   64
+#endif
 #define FX_RES        32                      // VAMP Panda resolution
 #define FX_RAKE       8
 
