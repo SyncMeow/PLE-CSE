@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 {
     int first = 0, last = n_problems - 1, nseeds = 1, seed0 = 0, opt, step = 3, flat = 0;
     const char *trace_dir = 0;
-    double delta_mm = 0.28;   // 2 x measured delta_FK (F = 18, TS = 6: 0.137 mm over 3 x 10^7 poses)
+    double delta_mm = FX_DELTA_FK_MM;
     uint32_t scene_mask = 0x7f;
     fx_settings_t s;
     fx_default_settings(&s);

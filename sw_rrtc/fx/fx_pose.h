@@ -5,6 +5,7 @@
 
 #define FX_WS_FRAC   14                    // workspace LSB = 2^-14 m
 #define FX_WS_LSB_M  (1.0 / 16384.0)
+#define FX_DELTA_FK_MM 0.28                // eps uses 2 x measured delta_FK (F = 18, TS = 6: 0.137 mm)
 
 // Env oracle: centre in workspace coords (s18, origin w_min), radius r_q in LSB; 1 = hit
 typedef int (*fx_env_fn)(int32_t cx, int32_t cy, int32_t cz, uint32_t rq);
@@ -21,4 +22,6 @@ extern int fx_cur_sphere, fx_cur_fine;      // sphere being queried (trace tags)
 // delta_fk_m: FK error bound folded into eps; flat = 1 queries the 59 fine spheres only
 void fx_pose_init(double delta_fk_m, int flat, fx_env_fn env);
 int fx_pose_ok(const int16_t *q);          // 1 = collision-free
+int fx_self_ok(const int32_t c[FX_N_SPHERES][3]);   // SCU: 1 = no self collision
+uint64_t fx_self_thr(int i);               // pair threshold, outer pairs first then inner (RTL ROM)
 void fx_fk_ws(const int16_t *q, int32_t c[FX_N_SPHERES][3]);

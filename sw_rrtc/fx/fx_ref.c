@@ -50,11 +50,36 @@ void fx_ref_fk_ws(const short *q, int *c)
     static int init;
     int16_t t[FX_DIM];
     int32_t cc[FX_N_SPHERES][3];
-    if (!init) { fx_pose_init(0.28e-3, 0, 0); init = 1; }       // sets w_min (r_q not used here)
+    if (!init) { fx_pose_init(FX_DELTA_FK_MM * 1e-3, 0, 0); init = 1; }   // same eps as rrtc_fx
     for (int j = 0; j < FX_DIM; ++j) t[j] = q[j];
     fx_fk_ws(t, cc);
     for (int s = 0; s < FX_N_SPHERES; ++s)
         for (int k = 0; k < 3; ++k) c[3 * s + k] = cc[s][k];
+}
+
+// ---- SCU: golden self-collision check on c[70 * 3] (sphere-major x, y, z); 1 = no self collision
+int fx_ref_self_ok(const int *c)
+{
+    int32_t cc[FX_N_SPHERES][3];
+    short q0[FX_DIM] = {0};
+    int dummy[3 * FX_N_SPHERES];
+    fx_ref_fk_ws(q0, dummy);                                     // makes sure fx_pose_init ran
+    for (int s = 0; s < FX_N_SPHERES; ++s)
+        for (int k = 0; k < 3; ++k) cc[s][k] = c[3 * s + k];
+    return fx_self_ok(cc);
+}
+
+// inner pair i (0..689): its spheres, its outer pair's spheres; returns the inner threshold
+long long fx_ref_self_info(int i, int *a, int *b, int *oa, int *ob, long long *othr)
+{
+    int o = 0;
+    while (i >= fx_self_off[o + 1]) ++o;
+    *a = fx_self_inner[i][0];
+    *b = fx_self_inner[i][1];
+    *oa = fx_self_outer[o][0];
+    *ob = fx_self_outer[o][1];
+    *othr = (long long)fx_self_thr(o);
+    return (long long)fx_self_thr(FX_N_SELF_OUTER + i);
 }
 
 // ---- ALU: the golden exact-integer helpers

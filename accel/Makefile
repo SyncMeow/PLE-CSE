@@ -6,6 +6,8 @@ VFLAGS  := -Wall --assert -Irtl/common
 PLE_PKG := rtl/ple/ple_pkg.sv
 FXDIR   := $(abspath ../sw_rrtc/fx)
 FKUGEN  := $(abspath ../sw_rrtc/tools/gen_fx_fku_rtl.py)
+SCUGEN  := $(abspath ../sw_rrtc/tools/gen_fx_scu_rtl.py)
+SWDIR   := $(abspath ../sw_rrtc)
 # testbenches call the golden model through DPI-C (fx_ref.c includes fx_plan.c)
 DPI     := $(FXDIR)/fx_ref.c -CFLAGS -I$(FXDIR) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
@@ -17,7 +19,7 @@ lint:
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_top.sv --top-module cse_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_top.sv --top-module ple_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_env_mem.sv --top-module cse_env_mem
-	@for m in ple_smp ple_tree ple_nnu ple_rkg ple_isqrt ple_div7 ple_fku; do $(VERI) --lint-only $(VFLAGS) $(PLE_PKG) rtl/ple/$$m.sv --top-module $$m || exit 1; done
+	@for m in ple_smp ple_tree ple_nnu ple_rkg ple_isqrt ple_div7 ple_fku ple_scu; do $(VERI) --lint-only $(VFLAGS) $(PLE_PKG) rtl/ple/$$m.sv --top-module $$m || exit 1; done
 	$(VERI) --lint-only $(VFLAGS) -Wno-BLKSEQ $(PKG) tb/ple_cse_if_checker.sv --top-module ple_cse_if_checker
 
 # interface checker self-test: clean traffic passes, each injected violation (bug 1..8) is caught
@@ -80,7 +82,20 @@ $(BUILD)/tb_fku/Vtb_fku: $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(FXDIR)/fx_
 	@mkdir -p $(BUILD)/tb_fku
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_fku --top-module tb_fku $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(DPI) -o Vtb_fku >/dev/null
 
-test-ple-unit: $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
+# SCU is generated from the golden pair tables and thresholds (8 lanes)
+$(BUILD)/scu_dump.txt: $(SWDIR)/host/fx_dump_scu.c $(FXDIR)/fx_pose.c $(FXDIR)/fx_pose.h $(FXDIR)/fx_fk_gen.c
+	@mkdir -p $(BUILD)
+	gcc -O2 -std=gnu11 -I$(FXDIR) -o $(BUILD)/fx_dump_scu $(SWDIR)/host/fx_dump_scu.c $(FXDIR)/fx_pose.c $(FXDIR)/fx_fk_gen.c -lm
+	$(BUILD)/fx_dump_scu > $@
+
+rtl/ple/ple_scu.sv: $(SCUGEN) $(BUILD)/scu_dump.txt
+	python3 -I $(SCUGEN) $(BUILD)/scu_dump.txt $@ 8
+
+$(BUILD)/tb_scu/Vtb_scu: $(PLE_PKG) rtl/ple/ple_scu.sv tb/tb_scu.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c $(FXDIR)/fx_pose.c
+	@mkdir -p $(BUILD)/tb_scu
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_scu --top-module tb_scu $(PLE_PKG) rtl/ple/ple_scu.sv tb/tb_scu.sv $(DPI) -o Vtb_scu >/dev/null
+
+test-ple-unit: $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
 	@for cap in 512 4096; do \
@@ -89,6 +104,7 @@ test-ple-unit: $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/V
 	$(BUILD)/tb_rkg/Vtb_rkg > $(BUILD)/tb_rkg/run.log; rc=$$?; grep -E 'TB_RKG|ERROR' $(BUILD)/tb_rkg/run.log; exit $$rc
 	$(BUILD)/tb_alu/Vtb_alu > $(BUILD)/tb_alu/run.log; rc=$$?; grep -E 'TB_ALU|ERROR' $(BUILD)/tb_alu/run.log; exit $$rc
 	$(BUILD)/tb_fku/Vtb_fku > $(BUILD)/tb_fku/run.log; rc=$$?; grep -E 'TB_FKU|ERROR' $(BUILD)/tb_fku/run.log; exit $$rc
+	$(BUILD)/tb_scu/Vtb_scu > $(BUILD)/tb_scu/run.log; rc=$$?; grep -E 'TB_SCU|ERROR' $(BUILD)/tb_scu/run.log; exit $$rc
 	@if $(BUILD)/tb_smp/Vtb_smp +n=2000 +refoff=1 > $(BUILD)/tb_smp/control.log 2>&1; then echo "control (ref seed+1) PASSED: comparison is broken"; exit 1; else echo "control (ref seed+1): failed as expected"; fi
 	@if $(BUILD)/tb_nnu/Vtb_nnu +rad_conflict > $(BUILD)/tb_nnu/control.log 2>&1; then echo "control (RAD conflict) PASSED: assertion is broken"; exit 1; else echo "control (RAD conflict): $$(grep -m1 -o 'ple_tree: [^)]*)' $(BUILD)/tb_nnu/control.log)"; fi
 
@@ -118,6 +134,9 @@ test-ple-mutants:
 	@for m in fku_m1 fku_m2 fku_m3 fku_m4 fku_m5 fku_m6 fku_m7 fku_m8 fku_m9 fku_m10; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_fku $(PLE_PKG) $(MUT)/$$m.sv tb/tb_fku.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_FKU|overflows' $(MUT)/$$m.log)"; fi; done
+	@for m in scu_m1 scu_m2 scu_m3 scu_m4; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_scu $(PLE_PKG) $(MUT)/$$m.sv tb/tb_scu.sv $(DPI) -o V >/dev/null || exit 1; \
+	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 TB_SCU $(MUT)/$$m.log)"; fi; done
 
 clean:
 	rm -rf $(BUILD)

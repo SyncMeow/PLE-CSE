@@ -71,7 +71,14 @@ int fx_pose_ok(const int16_t *q)
                 if (env_hit(c, fx_outer_kids[k])) return 0;
         }
     }
-    // self collision (SCU): outer link pair hit -> test its sphere pairs
+    return fx_self_ok(c);
+}
+
+uint64_t fx_self_thr(int i) { return self_thr[i]; }
+
+// self collision (SCU): outer link pair hit -> test its sphere pairs
+int fx_self_ok(const int32_t c[FX_N_SPHERES][3])
+{
     for (int o = 0; o < FX_N_SELF_OUTER; ++o) {
         if (!pair_hit(c[fx_self_outer[o][0]], c[fx_self_outer[o][1]], self_thr[o])) continue;
         for (int i = fx_self_off[o]; i < fx_self_off[o + 1]; ++i)
