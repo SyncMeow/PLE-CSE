@@ -1,6 +1,6 @@
 // cse_env_mem check: load two traces (+env0, +env1), read every word back through different ports and
 // dump it; the Makefile diffs the dumps against the original hex files.
-module tb_env_mem;
+module tb_env_mem #(parameter int N_CELL = ple_cse_pkg::CELL_DEPTH, parameter int N_PT = ple_cse_pkg::PT_DEPTH);
   import ple_cse_pkg::*;
 
   localparam int NRD = 4;
@@ -19,7 +19,7 @@ module tb_env_mem;
   logic [1:0][SLOT_W:0] hdr_n_cells;
   logic [1:0][2:0][PT_W-1:0] hdr_glo, hdr_ghi;
 
-  cse_env_mem #(.NRD(NRD)) u_mem (
+  cse_env_mem #(.NRD(NRD), .N_CELL(N_CELL), .N_PT(N_PT)) u_mem (
       .clk, .rd_buf, .dir_addr, .dir_data, .cell_addr, .cell_data, .pt_addr, .pt_data,
       .hdr_valid, .hdr_err, .hdr_n_pts, .hdr_n_cells, .hdr_glo, .hdr_ghi,
       .wr_en(1'b0), .wr_buf(1'b0), .wr_region(ENV_HDR), .wr_addr('0), .wr_data('0));

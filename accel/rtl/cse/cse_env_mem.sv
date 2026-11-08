@@ -5,7 +5,9 @@
 module cse_env_mem
   import ple_cse_pkg::*;
 #(
-    parameter int NRD = 4                                     // read-port sets (one per CU)
+    parameter int NRD        = 4,                             // read-port sets (one per CU)
+    parameter int N_CELL     = ple_cse_pkg::CELL_DEPTH,       // CELL entries per buffer (format allows 4096)
+    parameter int N_PT       = ple_cse_pkg::PT_DEPTH          // points per buffer (format allows 65536)
 ) (
     input  logic                          clk,
     // read ports: address at edge t, data after edge t+1 (ENV_RD_LAT = 1); out of range reads 0
@@ -31,9 +33,13 @@ module cse_env_mem
     input  logic [127:0]                  wr_data             // PTS: {z, y, x} in [47:0]
 );
 
-  localparam int CA_W = $clog2(CELL_DEPTH);
-  localparam int PA_W = $clog2(PT_DEPTH);
+  localparam int CA_W = $clog2(N_CELL);
+  localparam int PA_W = $clog2(N_PT);
   localparam int HA_W = $clog2(HDR_WORDS);
+
+  if (N_CELL < 1 || N_CELL > (1 << SLOT_W) || N_PT < 1 || N_PT > (1 << PT_AW)) begin : g_bad_depth
+    $error("cse_env_mem: N_CELL must be 1..4096 and N_PT 1..65536 (format v0 address widths)");
+  end
 
   logic [1:0][NRD-1:0][15:0]          dir_q;
   logic [1:0][NRD-1:0][127:0]         cell_q;
@@ -42,15 +48,15 @@ module cse_env_mem
   for (genvar b = 0; b < 2; ++b) begin : g_buf
     logic [31:0]          hdr  [HDR_WORDS];
     logic [15:0]          dirm [ENV_NCELL];
-    logic [127:0]         cellm[CELL_DEPTH];
-    logic [PT_DATA_W-1:0] ptm  [PT_DEPTH];
+    logic [127:0]         cellm[N_CELL];
+    logic [PT_DATA_W-1:0] ptm  [N_PT];
 
     // reads (both buffers are read; the port's rd_buf picks one, registered with the data)
     for (genvar p = 0; p < NRD; ++p) begin : g_rd
       always_ff @(posedge clk) begin
         dir_q[b][p]  <= (int'(dir_addr[p]) < ENV_NCELL) ? dirm[dir_addr[p]] : '0;
-        cell_q[b][p] <= (int'(cell_addr[p]) < CELL_DEPTH) ? cellm[cell_addr[p][CA_W-1:0]] : '0;
-        pt_q[b][p]   <= (int'(pt_addr[p]) < PT_DEPTH) ? ptm[pt_addr[p][PA_W-1:0]] : '0;
+        cell_q[b][p] <= (int'(cell_addr[p]) < N_CELL) ? cellm[cell_addr[p][CA_W-1:0]] : '0;
+        pt_q[b][p]   <= (int'(pt_addr[p]) < N_PT) ? ptm[pt_addr[p][PA_W-1:0]] : '0;
       end
     end
 
@@ -69,14 +75,14 @@ module cse_env_mem
         unique case (wr_region)
           ENV_HDR:  if (int'(wr_addr) < HDR_WORDS) hdr[wr_addr[HA_W-1:0]] <= wr_data[31:0];
           ENV_DIR:  if (int'(wr_addr) < ENV_NCELL) dirm[wr_addr[DIR_AW-1:0]] <= wr_data[15:0];
-          ENV_CELL: if (int'(wr_addr) < CELL_DEPTH) cellm[wr_addr[CA_W-1:0]] <= wr_data;
-          ENV_PTS:  if (int'(wr_addr) < PT_DEPTH) ptm[wr_addr[PA_W-1:0]] <= wr_data[PT_DATA_W-1:0];
+          ENV_CELL: if (int'(wr_addr) < N_CELL) cellm[wr_addr[CA_W-1:0]] <= wr_data;
+          ENV_PTS:  if (int'(wr_addr) < N_PT) ptm[wr_addr[PA_W-1:0]] <= wr_data[PT_DATA_W-1:0];
         endcase
       end
     end
 
 `ifndef SYNTHESIS
-    logic [PT_W-1:0] tx[PT_DEPTH], ty[PT_DEPTH], tz[PT_DEPTH];
+    logic [PT_W-1:0] tx[N_PT], ty[N_PT], tz[N_PT];
     initial begin
       string pre;
       for (int i = 0; i < HDR_WORDS; ++i) hdr[i] = '0;

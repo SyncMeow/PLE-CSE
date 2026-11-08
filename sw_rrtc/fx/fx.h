@@ -7,7 +7,9 @@
 #define FX_JFRAC      12                      // joint angle: s16, LSB = 2^-12 rad
 #define FX_HFRAC      24                      // high-precision length / DD radius: LSB = 2^-24 rad
 #define FX_RAD_INF    0xFFFFFFFFu             // DD radius "infinite"
-#define FX_NODE_CAP   1024                    // nodes per tree
+#ifndef FX_NODE_CAP                           // nodes per tree; must equal the RTL ple_tree CAP
+#define FX_NODE_CAP   1024
+#endif
 #define FX_PATH_CAP   64
 #define FX_RES        32                      // VAMP Panda resolution
 #define FX_RAKE       8

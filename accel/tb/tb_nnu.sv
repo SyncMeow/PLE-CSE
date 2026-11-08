@@ -1,8 +1,10 @@
 // ple_tree + ple_nnu vs golden tree_insert / nnu (DPI-C).
-// Tree sizes around every K boundary up to NODE_CAP, duplicates (ties), extreme joint values, both trees;
+// Tree sizes around every K boundary up to CAP, duplicates (ties), extreme joint values, both trees;
 // also checks the controller read port (q, parent, RAD = inf after insert, RAD write) and NNU latency.
-module tb_nnu;
+module tb_nnu #(parameter int CAP = ple_pkg::NODE_CAP);   // tree capacity under test (-GCAP=...)
   import ple_pkg::*;
+  localparam int IW = $clog2(CAP), NW = $clog2(CAP + 1);
+  localparam int GOLD_CAP = 1024;                          // golden FX_NODE_CAP: larger trees are not modelled
 
   import "DPI-C" function void fx_ref_tree_clear(input int tree);
   import "DPI-C" function int fx_ref_tree_insert(input int tree, input shortint q[7], input int parent);
@@ -13,18 +15,18 @@ module tb_nnu;
   always #5 clk = ~clk;
 
   logic wr_en = 0, wr_tree = 0, rad_we = 0, rad_tree = 0, rd_en = 0, rd_tree = 0, start = 0, tree = 0;
-  logic [IDX_W-1:0] wr_idx = '0, wr_parent = '0, rad_idx = '0, rd_idx = '0, rd_parent, idx, nn_row;
+  logic [IW-1:0] wr_idx = '0, wr_parent = '0, rad_idx = '0, rd_idx = '0, rd_parent, idx, nn_row;
   logic [RAD_W-1:0] rad_wdata = '0, rd_rad;
   conf_t wr_q = '0, rd_q, q = '0;
   conf_t [K-1:0] nn_q;
   logic nn_en, nn_tree, busy, done;
-  logic [CNT_W-1:0] n = '0;
+  logic [NW-1:0] n = '0;
   logic [D2_W-1:0] d2;
 
-  ple_tree #(.K(K)) u_tree (.clk, .wr_en, .wr_tree, .wr_idx, .wr_q, .wr_parent, .rad_we, .rad_tree, .rad_idx,
+  ple_tree #(.K(K), .CAP(CAP)) u_tree (.clk, .wr_en, .wr_tree, .wr_idx, .wr_q, .wr_parent, .rad_we, .rad_tree, .rad_idx,
                             .rad_wdata, .rd_en, .rd_tree, .rd_idx, .rd_q, .rd_parent, .rd_rad, .nn_en, .nn_tree,
                             .nn_row, .nn_q);
-  ple_nnu #(.K(K)) u_nnu (.clk, .rst_n, .start, .tree, .q, .n, .busy, .done, .idx, .d2, .nn_en, .nn_tree, .nn_row,
+  ple_nnu #(.K(K), .CAP(CAP)) u_nnu (.clk, .rst_n, .start, .tree, .q, .n, .busy, .done, .idx, .d2, .nn_en, .nn_tree, .nn_row,
                           .nn_q);
 
   int errs = 0, queries = 0, ties = 0, reads = 0, rad_checks = 0;
@@ -34,8 +36,9 @@ module tb_nnu;
     if (cyc > 64'd5000000) $fatal(1, "TB_NNU watchdog: no progress");
   end
   int cnt[2];
-  conf_t mirror[2][NODE_CAP];
-  logic [IDX_W-1:0] par[2][NODE_CAP];
+  int max_ins[2] = '{0, 0};                              // highest node count ever inserted per tree
+  conf_t mirror[2][CAP];
+  logic [IW-1:0] par[2][CAP];
 
   function automatic conf_t rand_conf(input int mode);
     conf_t c;
@@ -57,10 +60,11 @@ module tb_nnu;
     ri = fx_ref_tree_insert(t, a, p);
     if (ri != cnt[t]) begin $display("ERROR ref insert index %0d != %0d", ri, cnt[t]); errs++; end
     @(negedge clk);
-    wr_en = 1; wr_tree = t[0]; wr_idx = IDX_W'(cnt[t]); wr_q = c; wr_parent = IDX_W'(p);
+    wr_en = 1; wr_tree = t[0]; wr_idx = IW'(cnt[t]); wr_q = c; wr_parent = IW'(p);
     @(negedge clk) wr_en = 0;
     mirror[t][cnt[t]] = c;
-    par[t][cnt[t]] = IDX_W'(p);
+    if (cnt[t] + 1 > max_ins[t]) max_ins[t] = cnt[t] + 1;
+    par[t][cnt[t]] = IW'(p);
     cnt[t]++;
   endtask
 
@@ -71,7 +75,7 @@ module tb_nnu;
     to_arr(c, a);
     ri = fx_ref_nnu(t, a, rd2);
     @(negedge clk);
-    start = 1; tree = t[0]; q = c; n = CNT_W'(cnt[t]);
+    start = 1; tree = t[0]; q = c; n = NW'(cnt[t]);
     @(negedge clk) start = 0;
     cyc = 1;
     while (!done) begin @(negedge clk); cyc++; end
@@ -88,7 +92,7 @@ module tb_nnu;
 
   task automatic check_read(input int t, input int i);
     @(negedge clk);
-    rd_en = 1; rd_tree = t[0]; rd_idx = IDX_W'(i);
+    rd_en = 1; rd_tree = t[0]; rd_idx = IW'(i);
     @(negedge clk) rd_en = 0;
     reads++;
     if (rd_q != mirror[t][i] || rd_parent != par[t][i] || rd_rad != RAD_INF) begin
@@ -103,6 +107,7 @@ module tb_nnu;
     repeat (3) @(posedge clk);
     rst_n = 1'b1;
     foreach (sizes[s]) begin
+      if (sizes[s] > CAP || sizes[s] > GOLD_CAP) continue;
       for (int t = 0; t < 2; ++t) begin
         int other = 1 - t;
         fx_ref_tree_clear(0); fx_ref_tree_clear(1); cnt[0] = 0; cnt[1] = 0;
@@ -123,25 +128,27 @@ module tb_nnu;
     end
     // RAD: random writes over both trees, then read everything back
     begin
-      logic [RAD_W-1:0] rmir[2][NODE_CAP];
-      for (int t = 0; t < 2; ++t) for (int i = 0; i < NODE_CAP; ++i) rmir[t][i] = RAD_INF;
-      for (int t = 0; t < 2; ++t) for (int i = 0; i < cnt[t]; ++i) rmir[t][i] = RAD_INF;
+      logic [RAD_W-1:0] rmir[2][CAP];
+      bit known[2][CAP];                                 // RAD of a never-written entry is undefined
+      for (int t = 0; t < 2; ++t) for (int i = 0; i < CAP; ++i) begin rmir[t][i] = RAD_INF; known[t][i] = (i < max_ins[t]); end
       for (int k = 0; k < 3000; ++k) begin
-        int t = $urandom % 2, i = $urandom % NODE_CAP;
+        int t = $urandom % 2, i = $urandom % CAP;
         logic [RAD_W-1:0] v = $urandom;
         @(negedge clk);
-        rad_we = 1; rad_tree = t[0]; rad_idx = IDX_W'(i); rad_wdata = v;
+        rad_we = 1; rad_tree = t[0]; rad_idx = IW'(i); rad_wdata = v;
         rmir[t][i] = v;
+        known[t][i] = 1;
         if (k % 50 == 0) begin                            // insert in the same cycle wins: RAD = inf
-          wr_en = 1; wr_tree = t[0]; wr_idx = IDX_W'(i); wr_q = rand_conf(0); wr_parent = '0;
+          wr_en = 1; wr_tree = t[0]; wr_idx = IW'(i); wr_q = rand_conf(0); wr_parent = '0;
           rmir[t][i] = RAD_INF;
         end
         @(negedge clk) begin rad_we = 0; wr_en = 0; end
       end
       for (int t = 0; t < 2; ++t)
-        for (int i = 0; i < NODE_CAP; i += 3) begin
-          @(negedge clk) begin rd_en = 1; rd_tree = t[0]; rd_idx = IDX_W'(i); end
+        for (int i = 0; i < CAP; i += 3) begin
+          @(negedge clk) begin rd_en = 1; rd_tree = t[0]; rd_idx = IW'(i); end
           @(negedge clk) rd_en = 0;
+          if (!known[t][i]) continue;
           rad_checks++;
           if (rd_rad != rmir[t][i]) begin
             if (errs < 10) $display("ERROR rad tree=%0d idx=%0d rtl=%h exp=%h", t, i, rd_rad, rmir[t][i]);
@@ -154,7 +161,7 @@ module tb_nnu;
       wr_en = 1; wr_tree = 0; wr_idx = 10'd5; rad_we = 1; rad_tree = 0; rad_idx = 10'd6;
       @(negedge clk) begin wr_en = 0; rad_we = 0; end
     end
-    $display("TB_NNU queries=%0d exact_node_queries=%0d reads=%0d rad_checks=%0d errors=%0d", queries, ties, reads,
+    $display("TB_NNU CAP=%0d queries=%0d exact_node_queries=%0d reads=%0d rad_checks=%0d errors=%0d", CAP, queries, ties, reads,
              rad_checks, errs);
     if (errs != 0) $fatal(1, "TB_NNU FAIL");
     $finish;

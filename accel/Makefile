@@ -48,6 +48,12 @@ test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "buf0 $$f OK" || echo "buf0 $$f DIFF"; \
 	  cmp -s $(BUILD)/tb_env_mem/buf1_$$f.hex $(TRACE)/s0_p2_$$f.hex && echo "buf1 $$f OK" || echo "buf1 $$f DIFF"; done
+	@mkdir -p $(BUILD)/tb_env_mem_small
+	@$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem_small -GN_CELL=512 -GN_PT=8192 \
+	    --top-module tb_env_mem $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv -o V >/dev/null
+	@$(BUILD)/tb_env_mem_small/V +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem_small > /dev/null
+	@for f in dir cell ptx pty ptz; do \
+	  cmp -s $(BUILD)/tb_env_mem_small/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "depth 512/8192 buf0 $$f OK" || echo "depth 512/8192 buf0 $$f DIFF"; done
 
 # ---- PLE unit tests against the golden model
 $(BUILD)/tb_smp/Vtb_smp: $(PLE_PKG) rtl/ple/ple_smp.sv tb/tb_smp.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c
@@ -77,6 +83,9 @@ $(BUILD)/tb_fku/Vtb_fku: $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(FXDIR)/fx_
 test-ple-unit: $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
+	@for cap in 512 4096; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_nnu_cap$$cap -GCAP=$$cap --top-module tb_nnu $(PLE_PKG) rtl/ple/ple_tree.sv rtl/ple/ple_nnu.sv tb/tb_nnu.sv $(DPI) -o V >/dev/null || exit 1; \
+	  $(BUILD)/tb_nnu_cap$$cap/V > $(BUILD)/tb_nnu_cap$$cap/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu_cap$$cap/run.log; [ $$rc = 0 ] || exit $$rc; done
 	$(BUILD)/tb_rkg/Vtb_rkg > $(BUILD)/tb_rkg/run.log; rc=$$?; grep -E 'TB_RKG|ERROR' $(BUILD)/tb_rkg/run.log; exit $$rc
 	$(BUILD)/tb_alu/Vtb_alu > $(BUILD)/tb_alu/run.log; rc=$$?; grep -E 'TB_ALU|ERROR' $(BUILD)/tb_alu/run.log; exit $$rc
 	$(BUILD)/tb_fku/Vtb_fku > $(BUILD)/tb_fku/run.log; rc=$$?; grep -E 'TB_FKU|ERROR' $(BUILD)/tb_fku/run.log; exit $$rc

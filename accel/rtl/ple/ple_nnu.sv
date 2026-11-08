@@ -8,22 +8,25 @@
 module ple_nnu
   import ple_pkg::*;
 #(
-    parameter int K = 4                                  // PEs, power of 2, >= 2
+    parameter int K   = 4,                               // PEs, power of 2, >= 2
+    parameter int CAP = NODE_CAP,                        // nodes per tree, power of 2 (same as ple_tree)
+    parameter int IW  = $clog2(CAP),                     // node index width (derived, do not override)
+    parameter int NW  = $clog2(CAP + 1)                  // node count width (derived, do not override)
 ) (
     input  logic               clk,
     input  logic               rst_n,
     input  logic               start,                    // ignored while busy
     input  logic               tree,
     input  conf_t              q,
-    input  logic [CNT_W-1:0]   n,                        // nodes in the tree (1..NODE_CAP)
+    input  logic [NW-1:0]   n,                        // nodes in the tree (1..CAP)
     output logic               busy,
     output logic               done,                     // one-cycle pulse, idx / d2 valid from then on
-    output logic [IDX_W-1:0]   idx,
+    output logic [IW-1:0]   idx,
     output logic [D2_W-1:0]    d2,
     // TREE port B
     output logic               nn_en,
     output logic               nn_tree,
-    output logic [IDX_W-1:0]   nn_row,
+    output logic [IW-1:0]   nn_row,
     input  conf_t [K-1:0]      nn_q
 );
 
@@ -35,13 +38,13 @@ module ple_nnu
   end
 
   conf_t            qh;
-  logic [CNT_W-1:0] nh;
-  logic [IDX_W-1:0] row, rows;                           // rows = ceil(n / K)
+  logic [NW-1:0] nh;
+  logic [IW-1:0] row, rows;                           // rows = ceil(n / K)
   logic             issuing, tree_h;
 
   // control flags (reset) and data (no reset)
   logic             s1_v, s2_v, s3_v, s4_v, s1_last, s2_last, s3_last, s4_last;
-  logic [IDX_W-1:0] s1_row, s2_row, s3_row;
+  logic [IW-1:0] s1_row, s2_row, s3_row;
 
   // ---------------------------------------------------------------- issue
   assign nn_en   = issuing;
@@ -66,7 +69,7 @@ module ple_nnu
       tree_h <= tree;
       qh     <= q;
       nh     <= n;
-      rows   <= IDX_W'((32'(n) + K - 1) / K);
+      rows   <= IW'((32'(n) + K - 1) / K);
       row    <= '0;
     end else if (issuing) row <= row + 1'b1;
   end
@@ -128,7 +131,7 @@ module ple_nnu
   // level 0 holds the lanes; each level halves the candidates, keeping the left one unless the right is
   // valid and strictly smaller (left always has the lower node index)
   logic [D2_W-1:0]  rb_d2;
-  logic [IDX_W-1:0] rb_idx;
+  logic [IW-1:0] rb_idx;
   logic             rb_v;
   always_ff @(posedge clk) begin
     logic [K-1:0][D2_W-1:0] cd;
@@ -150,7 +153,7 @@ module ple_nnu
         cv[i] = cv[2*i] || cv[2*i+1];
       end
     rb_d2  <= cd[0];
-    rb_idx <= IDX_W'({s3_row[IDX_W-LW-1:0], cl[0]});
+    rb_idx <= IW'({s3_row[IW-LW-1:0], cl[0]});
   end
 
   // ---------------------------------------------------------------- stage 5: running minimum
@@ -173,6 +176,6 @@ module ple_nnu
   end
 
   logic unused;
-  assign unused = ^{s3_row[IDX_W-1:IDX_W-LW]};
+  assign unused = ^{s3_row[IW-1:IW-LW]};
 
 endmodule

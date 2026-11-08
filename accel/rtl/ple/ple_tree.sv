@@ -10,47 +10,52 @@
 module ple_tree
   import ple_pkg::*;
 #(
-    parameter int K = 4                                  // nodes per JOINT row (NNU PEs), power of 2, >= 2
+    parameter int K   = 4,                               // nodes per JOINT row (NNU PEs), power of 2, >= 2
+    parameter int CAP = NODE_CAP,                        // nodes per tree (SRAM size), power of 2, >= K
+    parameter int IW  = $clog2(CAP)                      // node index width (derived, do not override)
 ) (
     input  logic                         clk,
     // insert (node index chosen by the controller = current count); also sets RAD to infinity
     input  logic                         wr_en,
     input  logic                         wr_tree,
-    input  logic [IDX_W-1:0]             wr_idx,
+    input  logic [IW-1:0]             wr_idx,
     input  conf_t                        wr_q,
-    input  logic [IDX_W-1:0]             wr_parent,
+    input  logic [IW-1:0]             wr_parent,
     // RAD update (dynamic domain); an insert in the same cycle wins
     input  logic                         rad_we,
     input  logic                         rad_tree,
-    input  logic [IDX_W-1:0]             rad_idx,
+    input  logic [IW-1:0]             rad_idx,
     input  logic [RAD_W-1:0]             rad_wdata,
     // controller read of one node
     input  logic                         rd_en,
     input  logic                         rd_tree,
-    input  logic [IDX_W-1:0]             rd_idx,
+    input  logic [IW-1:0]             rd_idx,
     output conf_t                        rd_q,
-    output logic [IDX_W-1:0]             rd_parent,
+    output logic [IW-1:0]             rd_parent,
     output logic [RAD_W-1:0]             rd_rad,
     // NNU row read
     input  logic                         nn_en,
     input  logic                         nn_tree,
-    input  logic [IDX_W-1:0]             nn_row,          // row within the tree (< NODE_CAP / K)
+    input  logic [IW-1:0]             nn_row,          // row within the tree (< CAP / K)
     output conf_t [K-1:0]                nn_q
 );
 
-  localparam int ROWS = NODE_CAP / K;
+  localparam int ROWS = CAP / K;
   localparam int LW   = $clog2(K);
   localparam int RW   = $clog2(ROWS);
 
   if (K < 2 || (1 << LW) != K) begin : g_bad_k
     $error("ple_tree: K must be a power of 2 and >= 2");
   end
+  if (CAP < K || (1 << IW) != CAP) begin : g_bad_cap
+    $error("ple_tree: CAP must be a power of 2 and >= K");
+  end
 
   logic [RW:0]   wr_row, rd_row, nn_row_a;
   logic [LW-1:0] wr_lane, rd_lane, rd_lane_q;
-  assign wr_row   = {wr_tree, wr_idx[IDX_W-1:LW]};
+  assign wr_row   = {wr_tree, wr_idx[IW-1:LW]};
   assign wr_lane  = wr_idx[LW-1:0];
-  assign rd_row   = {rd_tree, rd_idx[IDX_W-1:LW]};
+  assign rd_row   = {rd_tree, rd_idx[IW-1:LW]};
   assign rd_lane  = rd_idx[LW-1:0];
   assign nn_row_a = {nn_tree, nn_row[RW-1:0]};
 
@@ -77,11 +82,11 @@ module ple_tree
   assign rd_q = rd_rowq[rd_lane_q];
 
   // PARENT, RAD
-  logic [IDX_W-1:0] pm[2 * NODE_CAP];
-  logic [RAD_W-1:0] rm[2 * NODE_CAP];
+  logic [IW-1:0] pm[2 * CAP];
+  logic [RAD_W-1:0] rm[2 * CAP];
   // RAD has one write port: an insert (RAD = inf) wins over a dynamic-domain update
   logic                   rm_we;
-  logic [IDX_W:0]         rm_wa;
+  logic [IW:0]         rm_wa;
   logic [RAD_W-1:0]       rm_wd;
   assign rm_we = wr_en | rad_we;
   assign rm_wa = wr_en ? {wr_tree, wr_idx} : {rad_tree, rad_idx};
@@ -109,6 +114,6 @@ module ple_tree
 `endif
 
   logic unused;
-  assign unused = ^nn_row[IDX_W-1:RW];
+  assign unused = ^nn_row[IW-1:RW];
 
 endmodule
