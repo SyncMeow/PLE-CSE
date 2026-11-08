@@ -9,7 +9,12 @@ FKUGEN  := $(abspath ../sw_rrtc/tools/gen_fx_fku_rtl.py)
 SCUGEN  := $(abspath ../sw_rrtc/tools/gen_fx_scu_rtl.py)
 SWDIR   := $(abspath ../sw_rrtc)
 # testbenches call the golden model through DPI-C (fx_ref.c includes fx_plan.c)
-DPI     := $(FXDIR)/fx_ref.c -CFLAGS -I$(FXDIR) -LDFLAGS -lm
+# golden model as a C library (gcc): DPI needs C linkage, and the golden C is not valid C++
+FXLIB   := $(BUILD)/libfxref.a
+SRCDIR  := $(abspath ../sw_rrtc/src)
+GENDIR  := $(abspath ../sw_rrtc/gen)
+FXLIB_SRC := $(FXDIR)/fx_ref.c $(FXDIR)/fx_env.c $(FXDIR)/fx_ref_stub.c $(SRCDIR)/env.c $(GENDIR)/problems_panda.c
+DPI     := -LDFLAGS $(FXLIB) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
 
 .PHONY: lint test-checker test-env-mem test-ple-unit test-ple-mutants clean
@@ -19,6 +24,7 @@ lint:
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_top.sv --top-module cse_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_top.sv --top-module ple_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_env_mem.sv --top-module cse_env_mem
+	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_robot_pkg.sv rtl/ple/ple_qd.sv --top-module ple_qd
 	@for m in ple_smp ple_tree ple_nnu ple_rkg ple_isqrt ple_div7 ple_fku ple_scu; do $(VERI) --lint-only $(VFLAGS) $(PLE_PKG) rtl/ple/$$m.sv --top-module $$m || exit 1; done
 	$(VERI) --lint-only $(VFLAGS) -Wno-BLKSEQ $(PKG) tb/ple_cse_if_checker.sv --top-module ple_cse_if_checker
 
@@ -57,20 +63,25 @@ test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem_small/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "depth 512/8192 buf0 $$f OK" || echo "depth 512/8192 buf0 $$f DIFF"; done
 
+$(FXLIB): $(FXLIB_SRC) $(wildcard $(FXDIR)/*.c) $(wildcard $(FXDIR)/*.h) $(wildcard $(SRCDIR)/*.h)
+	@mkdir -p $(BUILD)/fxlib
+	cd $(BUILD)/fxlib && for f in $(FXLIB_SRC); do gcc -O2 -std=gnu11 -ffp-contract=off -fPIC -I$(FXDIR) -I$(SRCDIR) -c $$f || exit 1; done
+	rm -f $@ && ar rcs $@ $(BUILD)/fxlib/*.o
+
 # ---- PLE unit tests against the golden model
-$(BUILD)/tb_smp/Vtb_smp: $(PLE_PKG) rtl/ple/ple_smp.sv tb/tb_smp.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c
+$(BUILD)/tb_smp/Vtb_smp: $(PLE_PKG) rtl/ple/ple_smp.sv tb/tb_smp.sv $(FXLIB)
 	@mkdir -p $(BUILD)/tb_smp
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_smp --top-module tb_smp $(PLE_PKG) rtl/ple/ple_smp.sv tb/tb_smp.sv $(DPI) -o Vtb_smp >/dev/null
 
-$(BUILD)/tb_nnu/Vtb_nnu: $(PLE_PKG) rtl/ple/ple_tree.sv rtl/ple/ple_nnu.sv tb/tb_nnu.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c
+$(BUILD)/tb_nnu/Vtb_nnu: $(PLE_PKG) rtl/ple/ple_tree.sv rtl/ple/ple_nnu.sv tb/tb_nnu.sv $(FXLIB)
 	@mkdir -p $(BUILD)/tb_nnu
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_nnu --top-module tb_nnu $(PLE_PKG) rtl/ple/ple_tree.sv rtl/ple/ple_nnu.sv tb/tb_nnu.sv $(DPI) -o Vtb_nnu >/dev/null
 
-$(BUILD)/tb_rkg/Vtb_rkg: $(PLE_PKG) rtl/ple/ple_rkg.sv tb/tb_rkg.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c
+$(BUILD)/tb_rkg/Vtb_rkg: $(PLE_PKG) rtl/ple/ple_rkg.sv tb/tb_rkg.sv $(FXLIB)
 	@mkdir -p $(BUILD)/tb_rkg
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_rkg --top-module tb_rkg $(PLE_PKG) rtl/ple/ple_rkg.sv tb/tb_rkg.sv $(DPI) -o Vtb_rkg >/dev/null
 
-$(BUILD)/tb_alu/Vtb_alu: $(PLE_PKG) rtl/ple/ple_isqrt.sv rtl/ple/ple_div7.sv tb/tb_alu.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c
+$(BUILD)/tb_alu/Vtb_alu: $(PLE_PKG) rtl/ple/ple_isqrt.sv rtl/ple/ple_div7.sv tb/tb_alu.sv $(FXLIB)
 	@mkdir -p $(BUILD)/tb_alu
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_alu --top-module tb_alu $(PLE_PKG) rtl/ple/ple_isqrt.sv rtl/ple/ple_div7.sv tb/tb_alu.sv $(DPI) -o Vtb_alu >/dev/null
 
@@ -78,7 +89,7 @@ $(BUILD)/tb_alu/Vtb_alu: $(PLE_PKG) rtl/ple/ple_isqrt.sv rtl/ple/ple_div7.sv tb/
 rtl/ple/ple_fku.sv: $(FKUGEN) $(FXDIR)/fx_fk_gen.c
 	python3 -I $(FKUGEN) $(FXDIR)/fx_fk_gen.c $@ 2 4
 
-$(BUILD)/tb_fku/Vtb_fku: $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c $(FXDIR)/fx_fk_gen.c
+$(BUILD)/tb_fku/Vtb_fku: $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(FXLIB) $(FXDIR)/fx_fk_gen.c
 	@mkdir -p $(BUILD)/tb_fku
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_fku --top-module tb_fku $(PLE_PKG) rtl/ple/ple_fku.sv tb/tb_fku.sv $(DPI) -o Vtb_fku >/dev/null
 
@@ -91,11 +102,29 @@ $(BUILD)/scu_dump.txt: $(SWDIR)/host/fx_dump_scu.c $(FXDIR)/fx_pose.c $(FXDIR)/f
 rtl/ple/ple_scu.sv: $(SCUGEN) $(BUILD)/scu_dump.txt
 	python3 -I $(SCUGEN) $(BUILD)/scu_dump.txt $@ 8
 
-$(BUILD)/tb_scu/Vtb_scu: $(PLE_PKG) rtl/ple/ple_scu.sv tb/tb_scu.sv $(FXDIR)/fx_ref.c $(FXDIR)/fx_plan.c $(FXDIR)/fx_pose.c
+$(BUILD)/tb_scu/Vtb_scu: $(PLE_PKG) rtl/ple/ple_scu.sv tb/tb_scu.sv $(FXLIB) $(FXDIR)/fx_pose.c
 	@mkdir -p $(BUILD)/tb_scu
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_scu --top-module tb_scu $(PLE_PKG) rtl/ple/ple_scu.sv tb/tb_scu.sv $(DPI) -o Vtb_scu >/dev/null
 
-test-ple-unit: $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
+# robot constants (outer order, fine spheres, r_q) generated from the golden model
+rtl/ple/ple_robot_pkg.sv: $(SWDIR)/host/fx_gen_robot_pkg.c $(FXDIR)/fx_pose.c $(FXDIR)/fx_pose.h $(FXDIR)/fx_fk_gen.c
+	@mkdir -p $(BUILD)
+	gcc -O2 -std=gnu11 -I$(FXDIR) -o $(BUILD)/fx_gen_robot_pkg $(SWDIR)/host/fx_gen_robot_pkg.c $(FXDIR)/fx_pose.c $(FXDIR)/fx_fk_gen.c -lm
+	$(BUILD)/fx_gen_robot_pkg > $@
+
+QD_SRC := $(PKG) $(PLE_PKG) rtl/ple/ple_robot_pkg.sv
+QD_TB  := tb/ple_cse_if_checker.sv tb/tb_qd.sv
+$(BUILD)/tb_qd/Vtb_qd: $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(FXLIB)
+	@mkdir -p $(BUILD)/tb_qd
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_qd --top-module tb_qd $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(DPI) -o Vtb_qd >/dev/null
+$(BUILD)/tb_qd_flat/Vtb_qd: $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(FXLIB)
+	@mkdir -p $(BUILD)/tb_qd_flat
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_qd_flat -GFLAT=1 --top-module tb_qd $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(DPI) -o Vtb_qd >/dev/null
+$(BUILD)/tb_qd_ak/Vtb_qd: $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(FXLIB)
+	@mkdir -p $(BUILD)/tb_qd_ak
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_qd_ak -GAK=1 --top-module tb_qd $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(DPI) -o Vtb_qd >/dev/null
+
+test-ple-unit: $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_ak/Vtb_qd $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
 	@for cap in 512 4096; do \
@@ -105,6 +134,7 @@ test-ple-unit: $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/V
 	$(BUILD)/tb_alu/Vtb_alu > $(BUILD)/tb_alu/run.log; rc=$$?; grep -E 'TB_ALU|ERROR' $(BUILD)/tb_alu/run.log; exit $$rc
 	$(BUILD)/tb_fku/Vtb_fku > $(BUILD)/tb_fku/run.log; rc=$$?; grep -E 'TB_FKU|ERROR' $(BUILD)/tb_fku/run.log; exit $$rc
 	$(BUILD)/tb_scu/Vtb_scu > $(BUILD)/tb_scu/run.log; rc=$$?; grep -E 'TB_SCU|ERROR' $(BUILD)/tb_scu/run.log; exit $$rc
+	@for v in tb_qd tb_qd_flat tb_qd_ak; do $(BUILD)/$$v/Vtb_qd > $(BUILD)/$$v/run.log; rc=$$?; grep -E 'TB_QD|STUCK|ERROR' $(BUILD)/$$v/run.log; [ $$rc = 0 ] || exit $$rc; done
 	@if $(BUILD)/tb_smp/Vtb_smp +n=2000 +refoff=1 > $(BUILD)/tb_smp/control.log 2>&1; then echo "control (ref seed+1) PASSED: comparison is broken"; exit 1; else echo "control (ref seed+1): failed as expected"; fi
 	@if $(BUILD)/tb_nnu/Vtb_nnu +rad_conflict > $(BUILD)/tb_nnu/control.log 2>&1; then echo "control (RAD conflict) PASSED: assertion is broken"; exit 1; else echo "control (RAD conflict): $$(grep -m1 -o 'ple_tree: [^)]*)' $(BUILD)/tb_nnu/control.log)"; fi
 
@@ -113,6 +143,7 @@ MUT := $(BUILD)/mutants
 test-ple-mutants:
 	@mkdir -p $(MUT)
 	python3 -I tb/mutants.py rtl/ple $(MUT)
+	$(MAKE) $(FXLIB)
 	@$(VERI) $(TBFLAGS) -Mdir $(MUT)/smp_m1 --top-module tb_smp $(PLE_PKG) $(MUT)/smp_m1.sv tb/tb_smp.sv $(DPI) -o V >/dev/null
 	@if $(MUT)/smp_m1/V +n=20000 > $(MUT)/smp_m1.log 2>&1; then echo "smp_m1 SURVIVED"; exit 1; else echo "smp_m1 killed: $$(grep TB_SMP $(MUT)/smp_m1.log)"; fi
 	@$(VERI) $(TBFLAGS) -Mdir $(MUT)/smp_m2 --top-module tb_smp $(PLE_PKG) $(MUT)/smp_m2.sv tb/tb_smp.sv $(DPI) -o V >/dev/null
@@ -137,6 +168,9 @@ test-ple-mutants:
 	@for m in scu_m1 scu_m2 scu_m3 scu_m4; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_scu $(PLE_PKG) $(MUT)/$$m.sv tb/tb_scu.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 TB_SCU $(MUT)/$$m.log)"; fi; done
+	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_qd $(QD_SRC) $(MUT)/$$m.sv $(QD_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 600 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_QD|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
 
 clean:
 	rm -rf $(BUILD)

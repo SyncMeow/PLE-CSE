@@ -59,7 +59,13 @@ int fx_pose_ok(const int16_t *q)
     int32_t c[FX_N_SPHERES][3];
     fx_ps.poses++;
     fx_fk_ws(q, c);
-    // environment (QD): outer sphere hit -> query its fine spheres; a fine hit = collision
+    if (!fx_env_ok(c)) return 0;
+    return fx_self_ok(c);
+}
+
+// environment (QD): outer sphere hit -> query its fine spheres; a fine hit = collision; 1 = free
+int fx_env_ok(const int32_t c[FX_N_SPHERES][3])
+{
     if (g_flat) {
         for (int o = 0; o < FX_N_OUTER; ++o)
             for (int k = fx_outer_kid_off[o]; k < fx_outer_kid_off[o + 1]; ++k)
@@ -71,7 +77,7 @@ int fx_pose_ok(const int16_t *q)
                 if (env_hit(c, fx_outer_kids[k])) return 0;
         }
     }
-    return fx_self_ok(c);
+    return 1;
 }
 
 uint64_t fx_self_thr(int i) { return self_thr[i]; }

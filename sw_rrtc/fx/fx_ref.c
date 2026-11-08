@@ -1,5 +1,6 @@
 // DPI-C entry points into the golden model for the PLE RTL testbenches (Platform/accel/tb).
-// Includes fx_plan.c so the testbench calls the very same static functions; do not link fx_plan.c too.
+// Includes fx_plan.c / fx_pose.c / fx_fk_gen.c so the testbench calls the very same static functions.
+// Built as C with gcc into libfxref.a (Platform/accel/Makefile), linked into the Verilator models.
 #include "fx_plan.c"
 #include "fx_pose.c"
 #include "fx_fk_gen.c"      // defines macros F / TS / MUL: keep it the last include
@@ -50,7 +51,8 @@ void fx_ref_fk_ws(const short *q, int *c)
     static int init;
     int16_t t[FX_DIM];
     int32_t cc[FX_N_SPHERES][3];
-    if (!init) { fx_pose_init(FX_DELTA_FK_MM * 1e-3, 0, 0); init = 1; }   // same eps as rrtc_fx
+    if (!init && !fx_w_min) fx_pose_init(FX_DELTA_FK_MM * 1e-3, 0, 0);    // keep an env set by fx_ref_env_load
+    init = 1;
     for (int j = 0; j < FX_DIM; ++j) t[j] = q[j];
     fx_fk_ws(t, cc);
     for (int s = 0; s < FX_N_SPHERES; ++s)
@@ -80,6 +82,36 @@ long long fx_ref_self_info(int i, int *a, int *b, int *oa, int *ob, long long *o
     *ob = fx_self_outer[o][1];
     *othr = (long long)fx_self_thr(o);
     return (long long)fx_self_thr(FX_N_SELF_OUTER + i);
+}
+
+// ---- QD + CSE: environment of a MotionBenchMaker problem, golden pose environment check
+#include "fx_env.h"
+#include <stdlib.h>
+#include "env.h"
+#include "problems.h"
+
+static fx_env_t ref_env;
+static int ref_cse(int32_t cx, int32_t cy, int32_t cz, uint32_t rq) { return fx_cse_ref(&ref_env, cx, cy, cz, rq); }
+
+// builds format-v0 environment of problem i (same as rrtc_fx); flat = 1 queries fine spheres only
+int fx_ref_env_load(int i, int flat)
+{
+    static void *mem;
+    points_t raw;
+    if (!mem) mem = malloc(1u << 27);
+    arena_init(mem, 1u << 27);
+    pc_sample(&problems[i], &raw);
+    fx_pose_init(FX_DELTA_FK_MM * 1e-3, flat, ref_cse);
+    fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &ref_env);
+    return ref_env.valid ? (int)ref_env.n_pts : -1;
+}
+int fx_ref_cse(int cx, int cy, int cz, int rq) { return fx_cse_ref(&ref_env, cx, cy, cz, (uint32_t)rq); }
+int fx_ref_env_ok(const int *c)                                  // 1 = no environment collision
+{
+    int32_t cc[FX_N_SPHERES][3];
+    for (int s = 0; s < FX_N_SPHERES; ++s)
+        for (int k = 0; k < 3; ++k) cc[s][k] = c[3 * s + k];
+    return fx_env_ok(cc);
 }
 
 // ---- ALU: the golden exact-integer helpers
