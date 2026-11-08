@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Generate fx/fx_fk_gen.c: fixed-point Panda FK plus sphere hierarchy and self-collision tables.
+
+Input is gen/panda_fk.c (scalar VAMP fkcc). Runtime ops floor (arithmetic shift); ROM constants
+round to nearest. Usage: gen_fx_fk.py <gen/panda_fk.c> <out.c> [F] [TBL_SHIFT]
+"""
+import math
+import re
+import sys
+
+N_SPHERES = 70
+NUM = r'-?\d+\.?\d*(?:e-?\d+)?f'
+VAR = r'[vy]\[\d+\]'
+
+
+def fkcc_body(src):
+    lines = src.splitlines()
+    start = next(i for i, l in enumerate(lines) if l.startswith('int panda_fkcc'))
+    done = next(i for i in range(start, len(lines)) if 'FK_DONE();' in lines[i])
+    end = next(i for i in range(done, len(lines)) if lines[i].strip() == 'return 1;')
+    return lines[start:done], lines[done:end]
+
+
+def statements(lines):
+    text = ' '.join(l.strip() for l in lines if not l.strip().startswith('//'))
+    return [s.strip() for s in text.split(';') if '=' in s and not s.strip().startswith(('float', 'int'))]
+
+
+def emit_fk(stmts, F):
+    out, nv, ny, sincos = [], 0, 0, []
+    for s in stmts:
+        lhs, rhs = [t.strip() for t in s.split('=', 1)]
+        m = re.match(r'vamp_(sin|cos)f\(x\[(\d+)\]\)$', rhs)
+        idx = int(re.search(r'\d+', lhs).group(0))
+        if lhs[0] == 'v': nv = max(nv, idx + 1)
+        else: ny = max(ny, idx + 1)
+        if m:
+            out.append(f'    {lhs} = {m.group(1)}_{m.group(2)};')
+            sincos.append((m.group(1), int(m.group(2))))
+            continue
+        rhs = rhs.replace('+ -', '- ')
+        parts = re.split(r'\s([+-])\s', ' ' + rhs if not rhs.startswith('-') else rhs)
+        terms, sign = [], '+'
+        toks = [p for p in parts if p != '']
+        i = 0
+        if toks and toks[0] not in '+-':
+            toks = ['+'] + toks
+        while i < len(toks):
+            sign, t = toks[i], toks[i + 1].strip()
+            i += 2
+            neg = sign == '-'
+            if t.startswith('-') and not re.fullmatch(NUM, t):
+                neg, t = not neg, t[1:]
+            fac = [f.strip() for f in t.split('*')]
+            consts = [f for f in fac if re.fullmatch(NUM, f)]
+            vars_ = [f for f in fac if re.fullmatch(VAR, f)]
+            assert len(consts) + len(vars_) == len(fac), t
+            c = 1.0
+            for k in consts: c *= float(k[:-1])
+            if neg: c = -c
+            expr = None
+            for v in vars_:
+                expr = v if expr is None else f'MUL({expr}, {v})'
+            if expr is None:
+                expr = f'{round(c * (1 << F))}LL'
+            elif consts or neg:
+                if c == 1.0: pass
+                elif c == -1.0: expr = f'(-{expr})'
+                else: expr = f'MUL({round(c * (1 << F))}LL, {expr})'
+            terms.append(expr)
+        out.append(f'    {lhs} = ' + ' + '.join(terms) + ';')
+    return out, nv, ny, sincos
+
+
+def parse_checks(lines):
+    text = '\n'.join(lines)
+    sid = lambda s: int(s) // 4
+    hier = []                      # (outer, [children])
+    for m in re.finditer(r'\n    if \(ENV_HIT\((\d+),.*?\n    \}', text, re.S):
+        kids = [int(k) for k in re.findall(r'\n        if \(ENV_HIT\((\d+),', m.group(0))]
+        hier.append((int(m.group(1)), kids))
+    selfp = []                     # ((a, b), [(a, b), ...])
+    self_text = text[text.index('robot self-collisions'):]
+    blocks = re.split(r'\n    if \(SELF_HIT\(', self_text)[1:]
+    for b in blocks:
+        ys = re.findall(r'y\[(\d+)\]', b)
+        outer = (sid(ys[0]), sid(ys[4]))
+        inner = []
+        for m in re.finditer(r'\n        if \(SELF_HIT\(\s*y\[(\d+)\], y\[\d+\], y\[\d+\], y\[\d+\], y\[(\d+)\]', b):
+            inner.append((sid(m.group(1)), sid(m.group(2))))
+        selfp.append((outer, inner))
+    return hier, selfp
+
+
+def main():
+    src = open(sys.argv[1]).read()
+    F = int(sys.argv[3]) if len(sys.argv) > 3 else 28
+    TS = int(sys.argv[4]) if len(sys.argv) > 4 else 6        # table step = 2^TS joint LSBs
+    fk_lines, chk_lines = fkcc_body(src)
+    stmts = statements(fk_lines)
+    body, nv, ny, sincos = emit_fk(stmts, F)
+    assert ny == 4 * N_SPHERES, ny
+    radii = {}
+    for s in stmts:
+        m = re.match(r'y\[(\d+)\]\s*=\s*(' + NUM + r')$', s)
+        if m and int(m.group(1)) % 4 == 3: radii[int(m.group(1)) // 4] = float(m.group(2)[:-1])
+    assert len(radii) == N_SPHERES
+    hier, selfp = parse_checks(chk_lines)
+    assert sum(len(k) for _, k in hier) == 59 and len(hier) == 11
+    assert len(selfp) == 21 and sum(len(i) for _, i in selfp) == 690, (len(selfp), sum(len(i) for _, i in selfp))
+    # sin/cos tables over joint angles [-2^15, 2^15) LSB, step 2^TS LSB (LSB = 2^-12 rad)
+    n_tab = (1 << (16 - TS)) + 1
+    ang = lambda k: (k * (1 << TS) - 32768) / 4096.0
+    stab = [round(math.sin(ang(k)) * (1 << F)) for k in range(n_tab)]
+    ctab = [round(math.cos(ang(k)) * (1 << F)) for k in range(n_tab)]
+    o = []
+    o.append('// GENERATED by tools/gen_fx_fk.py from gen/panda_fk.c. Do not edit; regenerate instead.')
+    o.append('#include "fx_fk.h"')
+    o.append('#include <math.h>\n')
+    o.append(f'#define F {F}')
+    o.append(f'#define TS {TS}')
+    o.append('#define MUL(a, b) (((int64_t)(a) * (int64_t)(b)) >> F)   // floor\n')
+    o.append(f'const int fx_fk_frac = F;')
+    o.append(f'static const int64_t sin_tab[{n_tab}] = {{' + ', '.join(f'{v}LL' for v in stab) + '};')
+    o.append(f'static const int64_t cos_tab[{n_tab}] = {{' + ', '.join(f'{v}LL' for v in ctab) + '};\n')
+    o.append('// Table lookup + linear interpolation, floor')
+    o.append('static inline int64_t lut(const int64_t *t, int16_t q)')
+    o.append('{')
+    o.append('    int32_t u = (int32_t)q + 32768, k = u >> TS, fr = u & ((1 << TS) - 1);')
+    o.append('    return t[k] + (((t[k + 1] - t[k]) * fr) >> TS);')
+    o.append('}\n')
+    o.append(f'const float fx_sphere_r[{N_SPHERES}] = {{' + ', '.join(f'{radii[i]!r}f' for i in range(N_SPHERES)) + '};\n')
+    o.append('// Sphere centres in the robot base frame, Q(F) metres')
+    o.append('void fx_fk_base(const int16_t *x, int64_t c[FX_N_SPHERES][3])')
+    o.append('{')
+    o.append(f'    int64_t v[{nv}], y[{ny}];')
+    for j in sorted({j for _, j in sincos}):
+        o.append(f'    int64_t sin_{j} = lut(sin_tab, x[{j}]), cos_{j} = lut(cos_tab, x[{j}]);')
+    o += body
+    o.append(f'    for (int i = 0; i < {N_SPHERES}; ++i) for (int k = 0; k < 3; ++k) c[i][k] = y[4 * i + k];')
+    o.append('}\n')
+    # double reference with exact sin/cos (same expression tree), for measuring delta_FK
+    o.append('// Reference: same expressions in double with libm sin/cos (metres)')
+    o.append('void fx_fk_ref(const double *x, double c[FX_N_SPHERES][3])')
+    o.append('{')
+    o.append(f'    double v[{nv}], y[{ny}];')
+    for st in stmts:
+        lhs, rhs = [t.strip() for t in st.split('=', 1)]
+        rhs = re.sub(r'vamp_(sin|cos)f\(x\[(\d+)\]\)', r'\1(x[\2])', rhs)
+        rhs = re.sub(r'([\d.])f\b', r'\1', rhs)
+        o.append(f'    {lhs} = {rhs};')
+    o.append(f'    for (int i = 0; i < {N_SPHERES}; ++i) for (int k = 0; k < 3; ++k) c[i][k] = y[4 * i + k];')
+    o.append('}\n')
+    flat = [k for _, ks in hier for k in ks]
+    o.append(f'const uint8_t fx_outer[FX_N_OUTER] = {{{", ".join(str(a) for a, _ in hier)}}};')
+    off, offs = 0, []
+    for _, ks in hier: offs.append(off); off += len(ks)
+    offs.append(off)
+    o.append(f'const uint8_t fx_outer_kid_off[FX_N_OUTER + 1] = {{{", ".join(map(str, offs))}}};')
+    o.append(f'const uint8_t fx_outer_kids[59] = {{{", ".join(map(str, flat))}}};\n')
+    o.append(f'const uint8_t fx_self_outer[FX_N_SELF_OUTER][2] = {{{", ".join(f"{{{a}, {b}}}" for (a, b), _ in selfp)}}};')
+    off, offs, flat = 0, [], []
+    for _, inn in selfp: offs.append(off); off += len(inn); flat += inn
+    offs.append(off)
+    o.append(f'const uint16_t fx_self_off[FX_N_SELF_OUTER + 1] = {{{", ".join(map(str, offs))}}};')
+    o.append(f'const uint8_t fx_self_inner[FX_N_SELF_INNER][2] = {{{", ".join(f"{{{a}, {b}}}" for a, b in flat)}}};')
+    open(sys.argv[2], 'w').write('\n'.join(o) + '\n')
+
+
+if __name__ == '__main__':
+    main()

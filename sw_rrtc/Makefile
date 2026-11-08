@@ -95,6 +95,35 @@ $(HOST_DIR)/rrtc_host: host/main_host.c $(CORE) $(wildcard src/*.h)
 	@$(MKDIR) $(HOST_DIR)
 	$(HOSTCC) $(COMMON) -o $@ host/main_host.c $(CORE) -lm
 
+# fixed-point golden model of the PLE/CSE accelerator (fx/, records/20261107-ple-cse-design.md)
+FX_SRCS := fx/fx_plan.c fx/fx_pose.c fx/fx_fk_gen.c fx/fx_env.c
+$(HOST_DIR)/rrtc_fx: host/main_fx.c $(FX_SRCS) $(CORE) $(wildcard src/*.h) $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/main_fx.c $(FX_SRCS) $(CORE) -lm
+
+FX_CHK_SRCS := src/env.c src/cc.c src/bench.c src/rrtc.c src/nn.c gen/panda_fk.c gen/problems_panda.c
+$(HOST_DIR)/fx_fkcheck: host/fx_fkcheck.c fx/fx_fk_gen.c $(FX_CHK_SRCS) $(wildcard src/*.h) $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_fkcheck.c fx/fx_fk_gen.c $(FX_CHK_SRCS) -lm
+
+$(HOST_DIR)/fx_envcheck: host/fx_envcheck.c fx/fx_env.c $(FX_CHK_SRCS) $(wildcard src/*.h) $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_envcheck.c fx/fx_env.c $(FX_CHK_SRCS) -lm
+
+# regenerate the fixed-point FK (F = fraction bits, TS = sin/cos table step 2^TS joint LSBs)
+FX_F  ?= 18
+FX_TS ?= 6
+fx-regen:
+	python3 -I tools/gen_fx_fk.py gen/panda_fk.c fx/fx_fk_gen.c $(FX_F) $(FX_TS)
+
+# golden-model self checks: delta_FK over 10^7 poses, cse_ref vs definition
+fx-check: $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
+	$(HOST_DIR)/fx_fkcheck 10000000
+	$(HOST_DIR)/fx_envcheck 0:60 20000
+
+fx: $(HOST_DIR)/rrtc_fx $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
+.PHONY: fx fx-regen fx-check
+
 $(HOST_DIR)/libvcc.so: host/api.c $(CORE) $(wildcard src/*.h)
 	@$(MKDIR) $(HOST_DIR)
 	$(HOSTCC) $(COMMON) -fPIC -shared -o $@ host/api.c $(CORE) -lm
