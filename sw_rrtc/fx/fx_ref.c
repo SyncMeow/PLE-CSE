@@ -114,6 +114,21 @@ int fx_ref_env_ok(const int *c)                                  // 1 = no envir
     return fx_env_ok(cc);
 }
 
+// ---- EVU: golden edge_ok with the full pose check (environment of fx_ref_env_load + self); 1 = edge free
+int fx_ref_edge_ok(const short *start, const int *vec, long long len_h, int *poses)
+{
+    static fx_result_t dummy;
+    int16_t s[FX_DIM];
+    int32_t v[FX_DIM];
+    for (int j = 0; j < FX_DIM; ++j) { s[j] = start[j]; v[j] = vec[j]; }
+    dummy.poses = 0;
+    g_r = &dummy;
+    g_pose_ok = fx_pose_ok;
+    int ok = edge_ok(s, v, (uint64_t)len_h);
+    *poses = (int)dummy.poses;
+    return ok;
+}
+
 // ---- ALU: the golden exact-integer helpers
 unsigned long long fx_ref_isqrt(unsigned long long v) { return fx_isqrt(v); }
 long long fx_ref_fdiv(long long a, long long b) { return fx_fdiv(a, b); }

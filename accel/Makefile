@@ -25,6 +25,7 @@ lint:
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_top.sv --top-module ple_top
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_env_mem.sv --top-module cse_env_mem
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_robot_pkg.sv rtl/ple/ple_qd.sv --top-module ple_qd
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv --top-module ple_evu
 	@for m in ple_smp ple_tree ple_nnu ple_rkg ple_isqrt ple_div7 ple_fku ple_scu; do $(VERI) --lint-only $(VFLAGS) $(PLE_PKG) rtl/ple/$$m.sv --top-module $$m || exit 1; done
 	$(VERI) --lint-only $(VFLAGS) -Wno-BLKSEQ $(PKG) tb/ple_cse_if_checker.sv --top-module ple_cse_if_checker
 
@@ -124,7 +125,14 @@ $(BUILD)/tb_qd_ak/Vtb_qd: $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(FXLIB)
 	@mkdir -p $(BUILD)/tb_qd_ak
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_qd_ak -GAK=1 --top-module tb_qd $(QD_SRC) rtl/ple/ple_qd.sv $(QD_TB) $(DPI) -o Vtb_qd >/dev/null
 
-test-ple-unit: $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_ak/Vtb_qd $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
+EVU_RTL := $(PLE_PKG) rtl/ple/ple_robot_pkg.sv rtl/ple/ple_rkg.sv rtl/ple/ple_fku.sv rtl/ple/ple_scu.sv rtl/ple/ple_qd.sv
+EVU_TB  := tb/cse_bfm.sv tb/ple_cse_if_checker.sv tb/tb_evu.sv
+$(BUILD)/tb_evu%/Vtb_evu: $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv $(EVU_TB) $(FXLIB)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) $(if $(findstring flat,$*),-GFLAT=1) $(if $(findstring ak,$*),-GAK=1) \
+	    --top-module tb_evu $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv $(EVU_TB) $(DPI) -o Vtb_evu >/dev/null
+
+test-ple-unit: $(BUILD)/tb_evu_h/Vtb_evu $(BUILD)/tb_evu_flat/Vtb_evu $(BUILD)/tb_evu_ak/Vtb_evu $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_ak/Vtb_qd $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
 	@for cap in 512 4096; do \
@@ -135,6 +143,7 @@ test-ple-unit: $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_a
 	$(BUILD)/tb_fku/Vtb_fku > $(BUILD)/tb_fku/run.log; rc=$$?; grep -E 'TB_FKU|ERROR' $(BUILD)/tb_fku/run.log; exit $$rc
 	$(BUILD)/tb_scu/Vtb_scu > $(BUILD)/tb_scu/run.log; rc=$$?; grep -E 'TB_SCU|ERROR' $(BUILD)/tb_scu/run.log; exit $$rc
 	@for v in tb_qd tb_qd_flat tb_qd_ak; do $(BUILD)/$$v/Vtb_qd > $(BUILD)/$$v/run.log; rc=$$?; grep -E 'TB_QD|STUCK|ERROR' $(BUILD)/$$v/run.log; [ $$rc = 0 ] || exit $$rc; done
+	@for v in tb_evu_h tb_evu_flat tb_evu_ak; do $(BUILD)/$$v/Vtb_evu > $(BUILD)/$$v/run.log; rc=$$?; grep -E 'TB_EVU|STUCK|ERROR' $(BUILD)/$$v/run.log; [ $$rc = 0 ] || exit $$rc; done
 	@if $(BUILD)/tb_smp/Vtb_smp +n=2000 +refoff=1 > $(BUILD)/tb_smp/control.log 2>&1; then echo "control (ref seed+1) PASSED: comparison is broken"; exit 1; else echo "control (ref seed+1): failed as expected"; fi
 	@if $(BUILD)/tb_nnu/Vtb_nnu +rad_conflict > $(BUILD)/tb_nnu/control.log 2>&1; then echo "control (RAD conflict) PASSED: assertion is broken"; exit 1; else echo "control (RAD conflict): $$(grep -m1 -o 'ple_tree: [^)]*)' $(BUILD)/tb_nnu/control.log)"; fi
 
@@ -171,6 +180,9 @@ test-ple-mutants:
 	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_qd $(QD_SRC) $(MUT)/$$m.sv $(QD_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 600 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_QD|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
+	@for m in evu_m1 evu_m2 evu_m3 evu_m4; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_evu $(PKG) $(EVU_RTL) $(MUT)/$$m.sv $(EVU_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_EVU|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
 
 clean:
 	rm -rf $(BUILD)

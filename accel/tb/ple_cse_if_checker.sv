@@ -89,7 +89,8 @@ module ple_cse_if_checker
         for (int t = 0; t < NTAG; ++t)
           if (k_all || k_tag == t[TAG_W-1:0]) begin
             last_k[t] = now;
-            k_block[t] = 1'b1;
+            // nothing in flight and nothing waiting on Q: the tag is retired at once
+            if (out_tag[t] != 0 || (q_valid && q_tag == t[TAG_W-1:0])) k_block[t] = 1'b1;
             if (q_valid && q_tag == t[TAG_W-1:0]) k_allow[t] = 1'b1;
           end
       end
