@@ -71,6 +71,8 @@ int fx_ref_self_ok(const int *c)
     return fx_self_ok(cc);
 }
 
+long long fx_ref_self_pairs(void) { return (long long)fx_ps.self_pairs; }   // golden pair-test count so far
+
 // inner pair i (0..689): its spheres, its outer pair's spheres; returns the inner threshold
 long long fx_ref_self_info(int i, int *a, int *b, int *oa, int *ob, long long *othr)
 {
@@ -105,7 +107,55 @@ int fx_ref_env_load(int i, int flat)
     fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &ref_env);
     return ref_env.valid ? (int)ref_env.n_pts : -1;
 }
+int fx_ref_prob_valid(int i) { return i >= 0 && i < (int)n_problems && problems[i].valid; }
 int fx_ref_cse(int cx, int cy, int cz, int rq) { return fx_cse_ref(&ref_env, cx, cy, cz, (uint32_t)rq); }
+
+// Performance model only (not part of the golden definition): cycles one CSE unit spends on a query,
+// design doc 4.1 cost: global cull 1, per cell walked 1 (DIR), non-empty +1 (CELL) +1 (AABB),
+// AABB pass + ceil(points tested / lanes) (points stop at the first hit, as in fx_cse_ref)
+int fx_ref_cse_cost(int cx, int cy, int cz, int rq, int lanes)
+{
+    const fx_env_t *e = &ref_env;
+    const int32_t c[3] = {cx, cy, cz}, r = rq;
+    const int64_t r2 = (int64_t)rq * rq;
+    int cost = 1;
+    if (!e->n_pts) return cost;
+    for (int k = 0; k < 3; ++k)
+        if (c[k] + r < e->glo[k] || c[k] - r > e->ghi[k]) return cost;
+    int32_t lo[3], hi[3];
+    for (int k = 0; k < 3; ++k) {
+        int32_t a = (c[k] - r) >> ENV_QSHIFT, b = (c[k] + r) >> ENV_QSHIFT;
+        lo[k] = a < 0 ? 0 : (a > ENV_G - 1 ? ENV_G - 1 : a);
+        hi[k] = b < 0 ? 0 : (b > ENV_G - 1 ? ENV_G - 1 : b);
+        if ((c[k] + r) < 0 || a > ENV_G - 1) return cost;
+    }
+    for (int32_t gz = lo[2]; gz <= hi[2]; ++gz)
+        for (int32_t gy = lo[1]; gy <= hi[1]; ++gy)
+            for (int32_t gx = lo[0]; gx <= hi[0]; ++gx) {
+                cost++;
+                uint16_t d = e->dir[(gz * ENV_G + gy) * ENV_G + gx];
+                if (!(d & 0x8000u)) continue;
+                cost += 2;
+                const env_cell_t *cl = &e->cell[d & 0x0fffu];
+                const int32_t org[3] = {gx << ENV_QSHIFT, gy << ENV_QSHIFT, gz << ENV_QSHIFT};
+                int64_t ad = 0;
+                for (int k = 0; k < 3; ++k) {
+                    int32_t b0 = org[k] + cl->lo[k], b1 = org[k] + cl->hi[k];
+                    int32_t t = c[k] < b0 ? b0 : (c[k] > b1 ? b1 : c[k]);
+                    ad += (int64_t)(c[k] - t) * (c[k] - t);
+                }
+                if (ad > r2) continue;
+                int n = 0, hit = 0;
+                for (uint32_t i = cl->base; i < (uint32_t)cl->base + cl->count && !hit; ++i) {
+                    n++;
+                    int64_t dx = cx - e->px[i], dy = cy - e->py[i], dz = cz - e->pz[i];
+                    hit = dx * dx + dy * dy + dz * dz <= r2;
+                }
+                cost += (n + lanes - 1) / lanes;
+                if (hit) return cost;
+            }
+    return cost;
+}
 int fx_ref_env_ok(const int *c)                                  // 1 = no environment collision
 {
     int32_t cc[FX_N_SPHERES][3];
@@ -132,6 +182,13 @@ int fx_ref_edge_ok(const short *start, const int *vec, long long len_h, int *pos
 // ---- CORE: a whole golden planning run on problem i (environment from fx_ref_env_load)
 // stats: status, iterations, size_start, size_goal, dd_rejects, edges, nn_queries, path_len
 // sg: start[7], goal[7]; shift: Halton rotation the CPU would write; path: path_len x 7
+// directed tests: DD radius for the following fx_ref_solve calls (0 = default); boundary counters of the last run
+static uint32_t ref_radius;
+void fx_ref_set_radius(int radius) { ref_radius = (uint32_t)radius; }
+int fx_ref_cov_dd_eq(void) { return (int)fx_cov_dd_eq; }
+int fx_ref_cov_conn0(void) { return (int)fx_cov_conn0; }
+void fx_ref_set_force_conn0(int k) { fx_force_conn0_at = (uint32_t)k; }
+
 int fx_ref_solve(int i, int seed, int max_iter, int range_h, int *stats, short *sg, int *shift, short *path)
 {
     static fx_result_t r;
@@ -139,6 +196,8 @@ int fx_ref_solve(int i, int seed, int max_iter, int range_h, int *stats, short *
     int16_t qs[FX_DIM], qg[FX_DIM];
     fx_default_settings(&s);
     s.range_h = (uint32_t)range_h;
+    if (ref_radius) s.radius = ref_radius;
+    fx_cov_dd_eq = fx_cov_conn0 = 0;
     s.seed = (uint32_t)seed;
     s.max_iterations = (uint32_t)max_iter;
     for (int j = 0; j < FX_DIM; ++j) {

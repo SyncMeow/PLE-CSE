@@ -40,6 +40,7 @@ module ple_core
     output logic [31:0]               edges,
     output logic [31:0]               nn_queries,
     output logic [31:0]               poses,             // poses computed by FKU (perf only)
+    output logic [31:0]               self_pairs,        // self-collision pair tests by SCU (perf only)
     output logic [15:0]               size_start,
     output logic [15:0]               size_goal,
     output logic [7:0]                path_len,
@@ -112,9 +113,11 @@ module ple_core
   logic [DIM-1:0][VW-1:0] ev_vec;
   logic [31:0] ev_len;
   logic [15:0] ev_np;
+  logic ev_spv;
+  logic [9:0] ev_spn;
   ple_evu #(.VW(VW), .NSLOT(NSLOT)) u_evu (
       .clk, .rst_n, .cfg_flat, .cfg_env_buf, .start(ev_start), .s_q(ev_s), .vec(ev_vec), .len_h(ev_len),
-      .busy(ev_busy), .done(ev_done), .edge_ok(ev_ok), .env_err(ev_err), .n_poses(ev_np), .q_valid, .q_ready, .q_tag,
+      .busy(ev_busy), .done(ev_done), .edge_ok(ev_ok), .env_err(ev_err), .n_poses(ev_np), .sp_valid(ev_spv), .sp_pairs(ev_spn), .q_valid, .q_ready, .q_tag,
       .q_user, .q_kill_on_hit, .q_env_buf, .q_cx, .q_cy, .q_cz, .q_r, .r_valid, .r_ready, .r_tag, .r_user, .r_status,
       .k_valid, .k_ready, .k_all, .k_tag);
 
@@ -162,12 +165,14 @@ module ple_core
 
   logic abort_q;
   always_ff @(posedge clk) begin
-    if (!rst_n) begin abort_q <= 1'b0; poses <= '0; end
+    if (!rst_n) begin abort_q <= 1'b0; poses <= '0; self_pairs <= '0; end
     else begin
       if (state == S_IDLE && go) abort_q <= 1'b0;
       else if (abort_req && busy) abort_q <= 1'b1;
       if (state == S_IDLE && go) poses <= '0;
       else if (ev_done) poses <= poses + 32'(ev_np);
+      if (state == S_IDLE && go) self_pairs <= '0;
+      else if (ev_spv) self_pairs <= self_pairs + 32'(ev_spn);
     end
   end
 

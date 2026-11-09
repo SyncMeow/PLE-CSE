@@ -6,6 +6,7 @@ module tb_scu;
 
   import "DPI-C" function void fx_ref_fk_ws(input shortint q[7], output int c[210]);
   import "DPI-C" function int fx_ref_self_ok(input int c[210]);
+  import "DPI-C" function longint fx_ref_self_pairs();
   import "DPI-C" function longint fx_ref_self_info(input int i, output int a, output int b, output int oa,
                                                    output int ob, output longint othr);
   import "DPI-C" function longint unsigned fx_ref_isqrt(input longint unsigned v);
@@ -14,8 +15,10 @@ module tb_scu;
   always #5 clk = ~clk;
 
   logic start = 0, busy, done, collide;
+  logic [9:0] pairs;
+  int pair_checks = 0;
   logic [69:0][2:0][17:0] c = '0;
-  ple_scu u_scu (.clk, .rst_n, .start, .c, .busy, .done, .collide);
+  ple_scu u_scu (.clk, .rst_n, .start, .c, .busy, .done, .collide, .pairs);
 
   // integer offset with dx^2 + dy^2 + dz^2 == target (searched; 0 if none found)
   function automatic bit find3(input longint target, output int dx, output int dy, output int dz);
@@ -41,7 +44,10 @@ module tb_scu;
 
   task automatic run(input int cc[210], input bit boundary);
     int exp_ok, lat = 0;
+    longint p0;
+    p0 = fx_ref_self_pairs();
     exp_ok = fx_ref_self_ok(cc);
+    p0 = fx_ref_self_pairs() - p0;
     @(negedge clk) begin
       for (int s = 0; s < 70; ++s) for (int k = 0; k < 3; ++k) c[s][k] = 18'(cc[3 * s + k]);
       start = 1;
@@ -57,6 +63,13 @@ module tb_scu;
       lat++;
     end
     start = 0;
+    if (exp_ok != 0) begin                                // collision-free: hardware tests exactly the golden pairs
+      pair_checks++;
+      if (longint'(pairs) != p0) begin
+        if (errs < 10) $display("ERROR pose %0d pair tests rtl=%0d golden=%0d hitm=%b", poses, pairs, p0, u_scu.hitm);
+        errs++;
+      end
+    end else if (pairs < 10'd21) begin $display("ERROR pose %0d: %0d pair tests on a collision", poses, pairs); errs++; end
     if ($urandom % 5 == 0) begin                        // a start in the done cycle is dropped
       start = 1;
       @(negedge clk) start = 0;
@@ -123,7 +136,7 @@ module tb_scu;
       run(cc, 0);
       full_range++;
     end
-    $display("TB_SCU poses=%0d self_collisions=%0d boundary=%0d (exact d2 %0d, hits %0d) full_range=%0d latency=%0d..%0d busy_starts=%0d errors=%0d",
+    $display("TB_SCU pair_checks=%0d poses=%0d self_collisions=%0d boundary=%0d (exact d2 %0d, hits %0d) full_range=%0d latency=%0d..%0d busy_starts=%0d errors=%0d", pair_checks,
              poses, hits, bnd, exact, bnd_hits, full_range, lat_min, lat_max, busy_starts, errs);
     if (errs != 0) $fatal(1, "TB_SCU FAIL");
     $finish;

@@ -13,7 +13,8 @@ module ple_scu (
     input  logic [69:0][2:0][17:0]   c,              // [sphere][axis] signed workspace coords
     output logic                     busy,
     output logic                     done,           // one-cycle pulse, collide valid from then on
-    output logic                     collide
+    output logic                     collide,
+    output logic [9:0]               pairs           // pair tests that reached the compare before done (perf)
 );
 
   localparam int S = 8, NG = 21, TW = 25, GW = 5;   // 153 entries, 4 of them outer
@@ -820,7 +821,7 @@ module ple_scu (
   logic [S-1:0][TW-1:0] t3; logic [S-1:0][4:0] g3;
   logic [S-1:0] hit3;
   // ---- stage 4: compare results (registered: keeps the compare off the control path)
-  logic v4, kind4; logic [S-1:0] hit4; logic [S-1:0][4:0] g4;
+  logic v4, kind4; logic [S-1:0] hit4, lv4; logic [S-1:0][4:0] g4;
 
   always_ff @(posedge clk) begin
     a1 <= rom_a(e); lv1 <= rom_v(e); b1 <= rom_b(e); t1 <= rom_t(e); g1 <= rom_g(e);
@@ -942,7 +943,7 @@ module ple_scu (
         sq3[l][x] <= 38'(d * d);
       end
     lv3 <= lv2; t3 <= t2; g3 <= g2; kind3 <= kind2;
-    hit4 <= hit3; g4 <= g3; kind4 <= kind3;
+    hit4 <= hit3; g4 <= g3; kind4 <= kind3; lv4 <= lv3;
   end
   always_comb
     for (int l = 0; l < S; ++l)
@@ -952,7 +953,7 @@ module ple_scu (
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state <= S_IDLE; busy <= 1'b0; done <= 1'b0; collide <= 1'b0;
+      state <= S_IDLE; busy <= 1'b0; done <= 1'b0; collide <= 1'b0; pairs <= '0;
       v1 <= 1'b0; v2 <= 1'b0; v3 <= 1'b0; v4 <= 1'b0;
     end else begin
       done <= 1'b0;
@@ -960,9 +961,11 @@ module ple_scu (
       if (v4 && !kind4)
         for (int l = 0; l < S; ++l) if (hit4[l]) hitm[g4[l]] <= 1'b1;
       if (done) busy <= 1'b0;
+      // entries of the last pose still in flight land during S_OUT (none of this pose can be at stage 4 yet)
+      if (v4 && state != S_IDLE && state != S_OUT) pairs <= pairs + 10'($countones(lv4));   // golden count on collision-free poses
       unique case (state)
         S_IDLE: if (start && !busy) begin
-          busy <= 1'b1; collide <= 1'b0; hitm <= '0; e <= '0; state <= S_OUT;
+          busy <= 1'b1; collide <= 1'b0; hitm <= '0; e <= '0; pairs <= '0; state <= S_OUT;
           cl_0 <= c[0]; cl_1 <= c[1]; cl_2 <= c[2]; cl_3 <= c[3]; cl_4 <= c[4]; cl_5 <= c[5]; cl_6 <= c[6]; cl_7 <= c[7]; cl_8 <= c[8]; cl_17 <= c[17]; cl_18 <= c[18]; cl_19 <= c[19]; cl_20 <= c[20]; cl_21 <= c[21]; cl_22 <= c[22]; cl_23 <= c[23]; cl_24 <= c[24]; cl_25 <= c[25]; cl_26 <= c[26]; cl_27 <= c[27]; cl_28 <= c[28]; cl_29 <= c[29]; cl_30 <= c[30]; cl_31 <= c[31]; cl_32 <= c[32]; cl_33 <= c[33]; cl_34 <= c[34]; cl_35 <= c[35]; cl_36 <= c[36]; cl_37 <= c[37]; cl_38 <= c[38]; cl_39 <= c[39]; cl_40 <= c[40]; cl_41 <= c[41]; cl_42 <= c[42]; cl_43 <= c[43]; cl_44 <= c[44]; cl_45 <= c[45]; cl_46 <= c[46]; cl_47 <= c[47]; cl_48 <= c[48]; cl_49 <= c[49]; cl_50 <= c[50]; cl_51 <= c[51]; cl_52 <= c[52]; cl_53 <= c[53]; cl_54 <= c[54]; cl_55 <= c[55]; cl_56 <= c[56]; cl_57 <= c[57]; cl_58 <= c[58]; cl_59 <= c[59]; cl_60 <= c[60]; cl_61 <= c[61]; cl_64 <= c[64]; cl_65 <= c[65]; cl_66 <= c[66]; cl_67 <= c[67]; cl_68 <= c[68]; cl_69 <= c[69];
         end
         S_OUT: if (e == 8'd3) begin state <= S_WAIT; drain <= 3'd0; end else e <= e + 1'b1;

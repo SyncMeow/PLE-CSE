@@ -102,6 +102,15 @@ MUTANTS = {
     # core_m10 (drop bt_over) is an equivalent mutant: na counts the extra node, so na + nb > PATH_CAP fails anyway
     'core_m11': ('ple_core.sv', "if (bt_over || 9'(na) + 9'(nb) > 9'(PATH_CAP)) begin", "if (bt_over || 9'(na) + 9'(nb) >= 9'(PATH_CAP)) begin",
                  'a path of exactly PATH_CAP nodes rejected'),
+    'core_m12': ('ple_core.sv', "prod < (64'(nd2) << 24)) begin", "prod <= (64'(nd2) << 24)) begin",
+                 'DD rejects at rad^2 == nd2 << 24 (reached only by the directed runs in tb_core)'),
+    'core_m13': ('ple_core.sv', "if (dv_q[0] == '0) state <= S_BT_A;", "if (1'b0) state <= S_BT_A;",
+                 'CONNECT with n_ext = 0 steps instead of connecting (reached only by the forced directed runs)'),
+    'core_m14': ('ple_core.sv', "if (state == S_IDLE && go) self_pairs <= '0;", "if (1'b0) self_pairs <= '0;",
+                 'self pair counter not cleared by start'),
+    'core_m15': ('ple_core.sv', "else if (ev_spv) self_pairs <= self_pairs + 32'(ev_spn);",
+                 "else self_pairs <= self_pairs + 32'(ev_spn);", 'self pair counter adds every cycle'),
+    'top_m10': ('ple_top.sv', "10'h035: v = self_pairs;", "10'h035: v = poses;", '0x0D4 reads the poses counter'),
     'top_m7': ('ple_top.sv', "      if (done) irq_pend <= 1'b1;", "      if (done && !wr_fire) irq_pend <= 1'b1;",
                'a done in the IRQ clear cycle is lost'),
     'top_m8': ('ple_top.sv', "wire st_busy = busy || go;", "wire st_busy = busy;", 'STATUS idle for a cycle after start'),
@@ -113,6 +122,8 @@ MUTANTS = {
                  'ERROR of the last run ends the first edge of the next run'),
     'scu_m5': ('ple_scu.sv', "d = 19'(signed'(a2[x])) - 19'(signed'(b2[l][x]));", "d = 19'(a2[x]) - 19'(b2[l][x]);",
                'coordinate difference zero-extended (negative coordinates)'),
+    'scu_m7': ('ple_scu.sv', "pairs <= pairs + 10'($countones(lv4));", "pairs <= pairs + 10'd8;",
+               'pair counter counts every lane of an entry'),
     'scu_m6': ('ple_scu.sv', "logic signed [18:0] d;", "logic signed [17:0] d;", 'coordinate difference one bit short'),
     'top_m1': ('ple_top.sv', 'return (k < 3) ? {q[2*k+1], q[2*k]} : {16\'d0, q[2*k]};',
                'return (k < 3) ? {q[2*k], q[2*k+1]} : {16\'d0, q[2*k]};', 'joint pair swapped in a word'),
@@ -128,7 +139,7 @@ MUTANTS = {
                'done flag not cleared by start'),
     'nnu_m1': ('ple_nnu.sv', 'rb_d2 < d2)', 'rb_d2 <= d2)', 'running minimum keeps the later row on ties'),
     'nnu_m2': ('ple_nnu.sv', 'cd[2*i+1] < cd[2*i])', 'cd[2*i+1] <= cd[2*i])', 'lane reduction keeps the higher lane on ties'),
-    'nnu_m3': ('ple_nnu.sv', "(32'(s1_row) * K + l) < 32'(nh)", "(32'(s1_row) * K + l) <= 32'(nh)",
+    'nnu_m3': ('ple_nnu.sv', "(32'(sd_row) * K + l) < 32'(nh)", "(32'(sd_row) * K + l) <= 32'(nh)",
                'one stale node past the end of the tree is considered'),
 }
 

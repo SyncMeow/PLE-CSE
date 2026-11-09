@@ -17,7 +17,7 @@ FXLIB_SRC := $(FXDIR)/fx_ref.c $(FXDIR)/fx_env.c $(FXDIR)/fx_ref_stub.c $(SRCDIR
 DPI     := -LDFLAGS $(FXLIB) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
 
-.PHONY: lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
+.PHONY: test-ple-drv lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
 
 # every RTL file must lint clean
 lint:
@@ -172,6 +172,16 @@ $(BUILD)/tb_top/Vtb_top: $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv $(TOP_TB) $(FXLIB
 test-ple-top: $(BUILD)/tb_top/Vtb_top
 	$(BUILD)/tb_top/Vtb_top > $(BUILD)/tb_top/run.log; rc=$$?; grep -E 'TB_TOP|ERROR' $(BUILD)/tb_top/run.log; exit $$rc
 
+# CPU driver (sw/ple_drv.c) run against ple_top through AXI-Lite (tb/drv_harness.c: coroutine test program)
+DRV_CFLAGS := -CFLAGS -DPLE_DRV_HOSTSIM -CFLAGS -I$(abspath sw) -CFLAGS -I$(SRCDIR)
+$(BUILD)/tb_drv/Vtb_drv: $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv tb/cse_bfm.sv tb/ple_cse_if_checker.sv tb/tb_drv.sv tb/drv_harness.c sw/ple_drv.c sw/ple_drv.h $(FXLIB)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) --top-module tb_drv $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv tb/cse_bfm.sv tb/ple_cse_if_checker.sv \
+	    tb/tb_drv.sv $(abspath tb/drv_harness.c) $(abspath sw/ple_drv.c) $(DRV_CFLAGS) $(DPI) -o Vtb_drv >/dev/null
+
+test-ple-drv: $(BUILD)/tb_drv/Vtb_drv
+	$(BUILD)/tb_drv/Vtb_drv > $(BUILD)/tb_drv/run.log; rc=$$?; grep -E 'TB_DRV|DRV|ERROR' $(BUILD)/tb_drv/run.log; exit $$rc
+
 test-ple-unit: $(BUILD)/tb_evu_h/Vtb_evu $(BUILD)/tb_evu_flat/Vtb_evu $(BUILD)/tb_evu_ak/Vtb_evu $(BUILD)/tb_qd/Vtb_qd $(BUILD)/tb_qd_flat/Vtb_qd $(BUILD)/tb_qd_ak/Vtb_qd $(BUILD)/tb_scu/Vtb_scu $(BUILD)/tb_smp/Vtb_smp $(BUILD)/tb_nnu/Vtb_nnu $(BUILD)/tb_rkg/Vtb_rkg $(BUILD)/tb_alu/Vtb_alu $(BUILD)/tb_fku/Vtb_fku
 	$(BUILD)/tb_smp/Vtb_smp +n=50000 > $(BUILD)/tb_smp/run.log; rc=$$?; grep -E 'TB_SMP|MISMATCH' $(BUILD)/tb_smp/run.log; exit $$rc
 	$(BUILD)/tb_nnu/Vtb_nnu > $(BUILD)/tb_nnu/run.log; rc=$$?; grep -E 'TB_NNU|ERROR' $(BUILD)/tb_nnu/run.log; exit $$rc
@@ -214,7 +224,7 @@ test-ple-mutants:
 	@for m in fku_m1 fku_m2 fku_m3 fku_m4 fku_m5 fku_m6 fku_m7 fku_m8 fku_m9 fku_m10; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_fku $(PLE_PKG) $(MUT)/$$m.sv tb/tb_fku.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_FKU|overflows' $(MUT)/$$m.log)"; fi; done
-	@for m in scu_m1 scu_m2 scu_m3 scu_m4 scu_m5 scu_m6; do \
+	@for m in scu_m1 scu_m2 scu_m3 scu_m4 scu_m5 scu_m6 scu_m7; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_scu $(PLE_PKG) $(MUT)/$$m.sv tb/tb_scu.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 TB_SCU $(MUT)/$$m.log)"; fi; done
 	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5 qd_m6 qd_m7 qd_m8 qd_m9 qd_m10 qd_m11 qd_m13; do \
@@ -227,19 +237,22 @@ test-ple-mutants:
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_evu $(PKG) $(EVU_RTL) $(MUT)/$$m.sv $(EVU_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_EVU|STUCK|ERROR' $(MUT)/$$m.log)"; fi; done
 	$(MAKE) $(FXLIB_SMALL)
-	@for m in core_m1 core_m2 core_m3 core_m4 core_m5 core_m6 core_m7 core_m8 core_m9 core_m11; do \
+	@for m in core_m1 core_m2 core_m3 core_m4 core_m5 core_m6 core_m7 core_m8 core_m9 core_m11 core_m12 core_m13; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$${m}_big -GRANGE=67108864 --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$${m}_small -GCAP=32 -GPCAP=8 --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI_SMALL) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$${m}_big/V +probs=6 +seeds=1 > $(MUT)/$$m.log 2>&1 && timeout 900 $(MUT)/$${m}_small/V >> $(MUT)/$$m.log 2>&1 && \
 	     timeout 900 $(MUT)/$$m/V >> $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; \
 	  else echo "$$m killed: $$(grep -m1 -E 'TB_CORE|ERROR|stuck' $(MUT)/$$m.log)"; fi; done
-	@for m in top_m1 top_m2 top_m3 top_m4 top_m5 top_m6 top_m7 top_m8 top_m9; do \
+	@for m in top_m1 top_m2 top_m3 top_m4 top_m5 top_m6 top_m7 top_m8 top_m9 top_m10; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_top $(PKG) $(CORE_RTL) $(MUT)/$$m.sv $(TOP_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$$m/V +probs=2 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_TOP|ERROR' $(MUT)/$$m.log)"; fi; done
 	@for m in corev_m1; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_core $(PKG) $(filter-out rtl/ple/ple_evu.sv,$(CORE_RTL)) $(MUT)/$$m.sv $(CORE_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$$m/V +probs=1 +seeds=1 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_CORE|ERROR' $(MUT)/$$m.log)"; fi; done
+	@for m in core_m14 core_m15; do \
+	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_top $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv rtl/ple/ple_top.sv $(TOP_TB) $(DPI) -o V >/dev/null || exit 1; \
+	  if timeout 900 $(MUT)/$$m/V +probs=2 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_TOP|ERROR' $(MUT)/$$m.log)"; fi; done
 	@for m in topc_m1; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_top $(PKG) $(filter-out rtl/ple/ple_core.sv,$(CORE_RTL)) $(MUT)/$$m.sv rtl/ple/ple_top.sv $(TOP_TB) $(DPI) -o V >/dev/null || exit 1; \
 	  if timeout 900 $(MUT)/$$m/V +probs=2 > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_TOP|ERROR' $(MUT)/$$m.log)"; fi; done

@@ -31,6 +31,11 @@ module tb_top;
   ple_cse_if_checker u_chk (.*);
 
   int errs = 0;
+  longint unsigned sp_sum = 0;                             // SCU pair tests of the current run (0x0D4 must match)
+  always @(posedge clk) if (rst_n) begin
+    if (u_top.go) sp_sum <= 0;
+    else if (u_top.u_core.ev_spv) sp_sum <= sp_sum + 64'(u_top.u_core.ev_spn);
+  end
   bit started = 1'b0;                                      // STATUS must show busy or done once a run started
   always @(posedge clk) if (rst_n) begin
     if (u_top.go) started <= 1'b1;
@@ -141,6 +146,8 @@ module tb_top;
       axr(12'h0C0, v); if (v == 0) begin $display("ERROR cycles counter is 0"); errs++; end
       axr(12'h0C8, v); if (v == 0) begin $display("ERROR poses counter is 0"); errs++; end
       axr(12'h0CC, v); if (v == 0) begin $display("ERROR queries counter is 0"); errs++; end
+      axr(12'h0D4, v); check("self pairs counter vs SCU events of this run", v, sp_sum);
+      if (v < 32'd21) begin $display("ERROR self pairs counter %0d", v); errs++; end
       for (int i = 0; i < st[7]; ++i)
         for (int k = 0; k < 4; ++k) begin
           axr(12'h400 + 12'(16 * i + 4 * k), v);

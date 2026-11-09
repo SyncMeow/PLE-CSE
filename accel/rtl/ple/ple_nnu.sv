@@ -2,8 +2,9 @@
 // The query is held for K PEs; one JOINT row (K nodes) streams in per cycle. Ties keep the lowest node
 // index: the pairwise reduction takes the right (higher-index) side only when strictly smaller, and the
 // running minimum updates only on strictly less.
-// Pipeline: issue row -> tree read -> squares -> 7-term adder tree -> K-way min tree -> running min.
-// done pulses ceil(n/K) + 5 cycles after the start cycle. The controller guarantees n >= 1 (the root
+// Pipeline: issue row -> tree read -> differences -> squares -> 7-term adder tree -> K-way min tree -> running
+// min. done pulses ceil(n/K) + 6 cycles after the start cycle (the difference register keeps the BRAM read
+// out of the multiplier path: post-route OOC of ple_top missed 10 ns by 10 ps on that path). The controller guarantees n >= 1 (the root
 // exists); n = 0 returns idx 0, d2 all ones (golden returns INT64_MAX, never used).
 module ple_nnu
   import ple_pkg::*;
@@ -43,8 +44,8 @@ module ple_nnu
   logic             issuing, tree_h;
 
   // control flags (reset) and data (no reset)
-  logic             s1_v, s2_v, s3_v, s4_v, s1_last, s2_last, s3_last, s4_last;
-  logic [IW-1:0] s1_row, s2_row, s3_row;
+  logic             s1_v, sd_v, s2_v, s3_v, s4_v, s1_last, sd_last, s2_last, s3_last, s4_last;
+  logic [IW-1:0] s1_row, sd_row, s2_row, s3_row;
 
   // ---------------------------------------------------------------- issue
   assign nn_en   = issuing;
@@ -85,6 +86,19 @@ module ple_nnu
     s1_row <= row;
   end
 
+  // ---------------------------------------------------------------- stage 2a: differences
+  logic [K-1:0][DIM-1:0][JW:0] dd;
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      sd_v <= 1'b0; sd_last <= 1'b0;
+    end else begin
+      sd_v <= s1_v; sd_last <= s1_last;
+    end
+    sd_row <= s1_row;
+    for (int l = 0; l < K; ++l)
+      for (int j = 0; j < DIM; ++j) dd[l][j] <= (JW+1)'(signed'(qh[j])) - (JW+1)'(signed'(nn_q[l][j]));
+  end
+
   // ---------------------------------------------------------------- stage 2: squares
   logic [K-1:0][DIM-1:0][SQ_W-1:0] sq;
   logic [K-1:0]                    s2_lv;                 // lane holds a real node
@@ -92,16 +106,12 @@ module ple_nnu
     if (!rst_n) begin
       s2_v <= 1'b0; s2_last <= 1'b0;
     end else begin
-      s2_v <= s1_v; s2_last <= s1_last;
+      s2_v <= sd_v; s2_last <= sd_last;
     end
-    s2_row <= s1_row;
+    s2_row <= sd_row;
     for (int l = 0; l < K; ++l) begin
-      s2_lv[l] <= (32'(s1_row) * K + l) < 32'(nh);
-      for (int j = 0; j < DIM; ++j) begin
-        logic signed [JW:0] dd;
-        dd = (JW+1)'(signed'(qh[j])) - (JW+1)'(signed'(nn_q[l][j]));
-        sq[l][j] <= SQ_W'(dd * dd);
-      end
+      s2_lv[l] <= (32'(sd_row) * K + l) < 32'(nh);
+      for (int j = 0; j < DIM; ++j) sq[l][j] <= SQ_W'(signed'(dd[l][j]) * signed'(dd[l][j]));
     end
   end
 

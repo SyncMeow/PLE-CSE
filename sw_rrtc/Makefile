@@ -172,6 +172,41 @@ sim:
 	@$(MAKE) --no-print-directory host
 	python3 tools/cmp_runs.py --soc $(SIM_LOG) --host-bin $(HOST_DIR)/rrtc_host
 
+# ---- fixed-point planner on the CPU (PLE baseline): tb_core problems x FX_SEEDS, mcycle per fx_solve ----
+# FX_PROFILE=1 adds per-pose / per-query cycle split; FX_PROBS=first:last indexes the 14-problem list
+FX_SEEDS   ?= 2
+FX_PROFILE ?= 0
+FX_PROBS   ?= 0:13
+FX_SOC_DIR := $(abspath ../build/sw_rrtc_fx_soc)/p$(subst :,_,$(FX_PROBS))_prof$(FX_PROFILE)
+FX_SOC_SRCS := soc/main_fx_soc.c $(FX_SRCS) $(CORE) soc/syscalls.c
+# FX_BLOB=1: one problem per image, its environment built on the host (host/fx_dump_env.c) and linked in,
+# so the RTL simulation runs fx_solve only
+FX_BLOB    ?= 0
+FX_PLIST   := 1 40 100 160 210 260 320 380 410 470 530 600 650 690
+FX_GPROB    = $(word $(shell echo $$(($(word 1,$(subst :, ,$(FX_PROBS))) + 1))),$(FX_PLIST))
+ifeq ($(FX_BLOB),1)
+FX_SOC_DIR := $(FX_SOC_DIR)_blob
+FX_BLOB_FLAGS = -DFX_ENV_BLOB -DFX_ENV_FILE=\"$(FX_SOC_DIR)/env.bin\" soc/env_blob.S
+endif
+$(HOST_DIR)/fx_dump_env: host/fx_dump_env.c $(FX_SRCS) $(CORE) $(wildcard src/*.h) $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_dump_env.c $(FX_SRCS) $(CORE) -lm
+fx-soc: $(if $(filter 1,$(FX_BLOB)),$(HOST_DIR)/fx_dump_env)
+	@$(MKDIR) $(FX_SOC_DIR)
+	$(if $(filter 1,$(FX_BLOB)),$(HOST_DIR)/fx_dump_env $(FX_GPROB) $(FX_SOC_DIR)/env.bin)
+	$(CC) $(ARCH_FLAGS) $(COMMON) -Ifx $(FX_BLOB_FLAGS) -g -ffunction-sections -fdata-sections -fno-builtin-printf -DFX_SEEDS=$(FX_SEEDS) \
+	    -DFX_PROFILE=$(FX_PROFILE) -DFX_PFIRST=$(word 1,$(subst :, ,$(FX_PROBS))) -DFX_PLAST=$(word 2,$(subst :, ,$(FX_PROBS))) \
+	    -DMAX_SAMPLES=262144 -DPROB_FIRST=0 -DPROB_LAST=0 -DSCENES=\"0\" -DSEEDS=1 -DSEED0=0 -DNN_MODE=0 -DNN_M=1 -DNN_W=8 -DNN_B=32 \
+	    -DNN_BITS=9 -DMAX_ITER=1000000 -Wno-unused-parameter -Wno-builtin-declaration-mismatch \
+	    $(FX_SOC_SRCS) soc/crt0.s $(LDFLAGS) $(LDLIBS) -o $(FX_SOC_DIR)/main.elf
+	$(OBJCOPY) -O binary $(FX_SOC_DIR)/main.elf $(FX_SOC_DIR)/main.bin
+	@$(TARGET_PREFIX)-size $(FX_SOC_DIR)/main.elf
+fx-sim: fx-soc
+	@$(MAKE) --no-print-directory sim-model
+	$(subst --sim-dir $(SIM_DIR),--sim-dir $(FX_SOC_DIR)/run,$(RUN_SIM)) --image $(FX_SOC_DIR)/main.bin --log $(FX_SOC_DIR)/sim.log \
+	    --timeout 4000000000 --idle-timeout 0
+.PHONY: fx-soc fx-sim
+
 clean:
 	rm -rf $(BUILD_DIR) $(HOST_DIR) $(SIM_BUILD_DIR)
 

@@ -84,7 +84,7 @@ module tb_nnu #(parameter int CAP = ple_pkg::NODE_CAP);   // tree capacity under
       if (errs < 10) $display("ERROR tree=%0d n=%0d rtl idx=%0d d2=%0d ref idx=%0d d2=%0d", t, cnt[t], idx, d2, ri, rd2);
       errs++;
     end
-    if (cyc != (cnt[t] + K - 1) / K + 5) begin       // rows issued + 4 pipeline stages + done register
+    if (cyc != (cnt[t] + K - 1) / K + 6) begin       // rows issued + 5 pipeline stages + done register
       if (errs < 10) $display("ERROR latency n=%0d: %0d cycles", cnt[t], cyc);
       errs++;
     end

@@ -24,6 +24,8 @@ module ple_evu
     output logic                      edge_ok,           // 1 = every pose free (valid with done)
     output logic                      env_err,           // a CSE ERROR ended the edge
     output logic [15:0]               n_poses,           // poses computed by FKU for this edge
+    output logic                      sp_valid,          // perf: an SCU check ended (pulse)
+    output logic [9:0]                sp_pairs,          // perf: its pair tests (valid with sp_valid)
     // CSE interface
     output logic                      q_valid,
     input  logic                      q_ready,
@@ -66,7 +68,9 @@ module ple_evu
   ple_fku u_fku (.clk, .rst_n, .start(fku_start), .q(q_hold), .busy(fku_busy), .done(fku_done), .c(fku_c));
 
   logic scu_start, scu_busy, scu_done, scu_coll;
-  ple_scu u_scu (.clk, .rst_n, .start(scu_start), .c(fku_c), .busy(scu_busy), .done(scu_done), .collide(scu_coll));
+  ple_scu u_scu (.clk, .rst_n, .start(scu_start), .c(fku_c), .busy(scu_busy), .done(scu_done), .collide(scu_coll),
+                 .pairs(sp_pairs));
+  assign sp_valid = scu_done;
 
   logic qd_ready_edge, qd_start, qd_kill, qd_idle, qd_err, qd_pv, qd_pr, pd_valid, pd_hit;
   logic [15:0] pd_id, pose_id;

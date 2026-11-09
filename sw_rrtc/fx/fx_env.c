@@ -166,6 +166,7 @@ int fx_cse_ref(const fx_env_t *e, int32_t cx, int32_t cy, int32_t cz, uint32_t r
     return 0;
 }
 
+#ifndef __riscv   // trace dump: host only (the SoC baseline build has no __int128 or files)
 #include <stdio.h>
 
 static FILE *open2(const char *dir, const char *tag, const char *name)
@@ -212,3 +213,4 @@ int fx_env_dump(const fx_env_t *e, const char *dir, const char *tag)
     }
     return 0;
 }
+#endif

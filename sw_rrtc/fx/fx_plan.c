@@ -13,6 +13,12 @@ static const float lim_a[FX_DIM] = {
 
 // ---------------------------------------------------------------- SMP: integer Halton
 // u = sum_k d_k * floor(2^32 / b^(k+1)) (Q0.32); updated incrementally, exact by construction
+const uint32_t *fx_shift_override;
+uint32_t fx_cov_dd_eq, fx_cov_conn0;
+uint32_t fx_force_conn0_at;
+static uint32_t n_connect;
+void (*fx_dd_observer)(uint32_t rad, int64_t nd2);
+
 #define H_DIGITS 24
 static const uint32_t h_base[FX_DIM] = {3, 5, 7, 11, 13, 17, 19};
 static uint32_t h_inv[FX_DIM][H_DIGITS], h_dig[FX_DIM][H_DIGITS], h_u[FX_DIM], h_shift[FX_DIM];
@@ -41,6 +47,8 @@ static void smp_reset(uint32_t seed)
         z ^= z >> 31;
         h_shift[j] = (uint32_t)(z >> 40) << 8;
     }
+    if (fx_shift_override)
+        for (int j = 0; j < FX_DIM; ++j) h_shift[j] = fx_shift_override[j];
 }
 
 static void smp_next(int16_t *q)
@@ -205,6 +213,7 @@ void fx_solve(const int16_t *start, const int16_t *goal, const fx_settings_t *s,
     g_pose_ok = pose_ok;
     g_r = r;
     trees[0].n = trees[1].n = 0;
+    n_connect = 0;
     smp_reset(s->seed);
 
     // DIRECT
@@ -238,6 +247,10 @@ void fx_solve(const int16_t *start, const int16_t *goal, const fx_settings_t *s,
         uint32_t near = nnu(ta, q, &nd2);
         r->nn_queries++;
         uint32_t nrad = ta->rad[near];
+        if (nrad != FX_RAD_INF) {
+            if ((uint64_t)nrad * nrad == ((uint64_t)nd2 << FX_HFRAC)) fx_cov_dd_eq++;
+            if (fx_dd_observer) fx_dd_observer(nrad, nd2);
+        }
         // DD: reject when rad < nd  <=>  rad^2 < nd2 * 2^24 (exact)
         if (s->dynamic_domain && nrad != FX_RAD_INF && (uint64_t)nrad * nrad < ((uint64_t)nd2 << FX_HFRAC)) {
             r->dd_rejects++;
@@ -270,6 +283,8 @@ void fx_solve(const int16_t *start, const int16_t *goal, const fx_settings_t *s,
         r->nn_queries++;
         uint64_t od_h = len_h(od2);
         uint64_t n_ext = (od_h + s->range_h - 1) / s->range_h;
+        if (++n_connect == fx_force_conn0_at) n_ext = 0;
+        if (n_ext == 0) fx_cov_conn0++;
         uint64_t inc_h = n_ext ? od_h / n_ext : 0;
         int32_t ovec[FX_DIM];
         for (int j = 0; j < FX_DIM; ++j) ovec[j] = (int32_t)tb->q[other][j] - qnew[j];

@@ -45,6 +45,16 @@ typedef struct {
 typedef int (*fx_pose_fn)(const int16_t *q);
 
 extern uint32_t fx_cur_edge, fx_cur_pose;   // edge counter and pose index within the edge (trace tags)
+// Directed-test support (default: no effect). fx_shift_override: Halton rotation used instead of the one
+// derived from the seed (the RTL takes any 32-bit rotation from the CPU). Coverage counters of the two
+// boundaries random runs almost never reach: DD check with rad^2 == nd2 << 24, CONNECT with n_ext = 0.
+extern const uint32_t *fx_shift_override;
+extern uint32_t fx_cov_dd_eq, fx_cov_conn0;
+// White-box directed test: the k-th CONNECT of a run (1-based) takes n_ext = 0 (0 = off). The RTL testbench
+// forces the same CONNECT, so the n_ext = 0 branch and its backtrace are compared end to end.
+extern uint32_t fx_force_conn0_at;
+// Optional observer of every DD check (rad != inf): node radius and squared distance
+extern void (*fx_dd_observer)(uint32_t rad, int64_t nd2);
 
 void fx_default_settings(fx_settings_t *s);
 void fx_solve(const int16_t *start, const int16_t *goal, const fx_settings_t *s, fx_pose_fn pose_ok,
