@@ -14,6 +14,8 @@
 |---|---|
 | `rtl/common/ple_cse_pkg.sv` | 兩邊共用的參數、編碼、struct。**位寬一律引用它，不要在模組內寫死** |
 | `rtl/cse/cse_top.sv` | CSE 頂層埠骨架。埠列表是合約，不可增減或改名；內部由你實作 |
+| `rtl/cse/cse_cu_pkg.sv` | 單一 CU 的 context、BALL、VOXEL/END、CELL/END 與距離 pipeline packed struct |
+| `rtl/cse/cse_cu.sv` | 單一完整 CU；未來 array 直接重複實例化此模組 |
 | `rtl/cse/cse_env_mem.sv` | 環境記憶體（雙緩衝）參考實作，可直接載入 trace。可以換掉內部，埠與延遲不可變 |
 | `tb/ple_cse_if_checker.sv` | 介面檢查器。你的 testbench 必須掛上它，且結束時 0 個錯誤 |
 | `tb/tb_if_checker.sv` | 檢查器的自測；裡面的 PLE 端驅動器可以拿來當你 testbench 的起點 |
@@ -68,8 +70,8 @@
 | C5 | 有在途查詢且 `r_ready` 維持為 1 時，相鄰兩筆回應的間隔 ≤ `MAX_LAT` = 65,536 cycles |
 | C6 | `cse_idle` = 1 時，不能有在途查詢 |
 
-**v1 的約定**
-- **kill**：可以完全忽略。`k_ready` 接 1，被 kill 的查詢照常算完並回真正的結果。規格允許這樣做，kill 留到效能優化時再加。
+**目前單一 CU 的約定（2026-11-10 更新）**
+- **kill**：本版已選擇實作 K(tag) 與 K(all)，覆蓋先前「v1 可忽略 kill」的最低要求。預設 `KILL_ENABLE=1`，以每 tag 32-bit generation 辨識既有查詢；Q 與命中它的 K 同 cycle 握手時，新 Q 捕捉更新後的 generation，因此不受該次 K 影響。`KILL_ENABLE=0` 僅供效能對照，仍接受 K 並回真正結果。
 - **回應順序**：不限，哪一筆先算完就先回。
 - **`r_ready`**：PLE 會一直接 1，但你的設計仍須正確處理 `r_ready` = 0（例如回應先放進 FIFO）。
 
@@ -142,6 +144,8 @@ golden model 的 C 參考實作在 `Platform/sw_rrtc/fx/fx_env.c` 的 `fx_cse_re
 2. **隨機球**：trace 裡大多是 MISS（約 95%），所以要再加隨機球：半徑到 8192、球心在 workspace 外、距離平方剛好等於 `q_r²`。golden model 的 `host/fx_envcheck.c` 有這些產生方式；預期值可以用 `check_cse_trace.py` 的暴力法算。
 3. **介面**：testbench 掛 `ple_cse_if_checker`，並隨機拉低 `r_ready`、隨機送 K（v1 忽略也必須通過）。結束時要拉高 `eot`，確認所有查詢都有回應。
 4. **對照組**：至少要有一個故意改錯的版本被抓到，例如把 `≤` 改成 `<`、範圍少走最後一格、AABB 少一個 LSB。golden model 用這三種都抓到過。
+
+目前可用 `make -C Platform/accel test-cse` 重播 s0_p1–p3 trace、測試 kill/背壓、`KILL_ENABLE=0`、`d² == r²`、密集 R_MAX 延遲，以及確認嚴格 `<` comparator mutant 會失敗。
 
 ## 9. 交付給 PLE 端前
 

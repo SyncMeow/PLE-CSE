@@ -21,7 +21,7 @@
 - **埠**：`rtl/cse/cse_top.sv` 與 `rtl/ple/ple_top.sv` 的埠列表就是合約，兩邊不可自行增減或改名。位寬全部引用 `ple_cse_pkg`（`TAG_W` = 4、`USER_W` = 16、`COORD_W` = 18、`RQ_W` = 14、`R_MAX` = 8192、`status_e`）。
 - **語意**：HIT ⇔ 存在點 p，`Σ(c − p)² ≤ q_r²`（整數、精確）。每筆被接受的查詢恰好一筆回應，回應可亂序，`r_tag`、`r_user` 原樣送回。KILLED 只代表「沒算」。
 - **雙方義務**：C1–C6（CSE）、P1–P6（PLE），見設計文件 4.5。P2 已釐清：K 握手當下已在 Q 上等待的查詢照常送完。
-- **v1 約定**：CSE 忽略 kill（`k_ready` 接 1、照常回真正結果）；PLE 的 `r_ready` 接 1；`MAX_LAT` = 65,536 cycles（C5：有在途查詢且 `r_ready` 為 1 時，相鄰兩筆回應的間隔上限）。
+- **目前單一 CU 選擇（2026-11-10）**：CSE 已支援 K(tag) 與 K(all)，`k_ready` 接 1；預設 `KILL_ENABLE=1`，可設 0 回到「忽略 kill、照常回真正結果」的最低合約。PLE 的 `r_ready` 接 1；`MAX_LAT` = 65,536 cycles（C5：有在途查詢且 `r_ready` 為 1 時，相鄰兩筆回應的間隔上限）。
 - **驗證**：`tb/ple_cse_if_checker.sv` 是被動監看模組，PLE 測試、CSE 測試、整合測試都掛同一個。它檢查握手穩定性（H1–H3）、C1/C2、C4（逐筆檢查 KILLED 的生命週期）、C5、C6、P2、P5，以及測試結束時是否全部回應。`make -C Platform/accel test-checker` 是它的自測：乾淨流量 0 個錯誤，8 種植入的違規全部被抓到。
 - **待辦**：雙方簽核後把狀態改成「凍結 v1.0」。
 
