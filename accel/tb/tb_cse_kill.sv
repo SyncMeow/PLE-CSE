@@ -28,13 +28,15 @@ module tb_cse_kill #(
     status_e status;
   } expected_t;
   expected_t expected[16];
+  bit expected_seen[16];
   int unsigned n_expected, n_recv, errors;
 
-  cse_top #(.KILL_ENABLE(KE)) dut (.*);
+  cse_system #(.KILL_ENABLE(KE)) dut (.*);
   ple_cse_if_checker #(.AUTO_KILL(1'b0)) u_checker (.*);
 
   task automatic expect_response(input int tag_i, input int user_i, input status_e status_i);
     expected[n_expected] = '{TAG_W'(tag_i), USER_W'(user_i), status_i};
+    expected_seen[n_expected] = 1'b0;
     n_expected++;
   endtask
 
@@ -79,15 +81,17 @@ module tb_cse_kill #(
 
   always @(posedge clk) begin
     if (rst_n && r_valid && r_ready) begin
-      if (n_recv >= n_expected) begin
-        $display("TB_CSE_KILL ERROR unexpected response");
+      int match;
+      match = -1;
+      for (int i = 0; i < 16; ++i)
+        if (i < n_expected && !expected_seen[i] && r_tag == expected[i].tag &&
+            r_user == expected[i].user && r_status == expected[i].status && match < 0)
+          match = i;
+      if (match < 0) begin
+        $display("TB_CSE_KILL ERROR unexpected response %0d/%0h/%0d", r_tag, r_user, r_status);
         errors++;
-      end else if (r_tag != expected[n_recv].tag || r_user != expected[n_recv].user ||
-                   r_status != expected[n_recv].status) begin
-        $display("TB_CSE_KILL ERROR n=%0d got %0d/%0h/%0d expected %0d/%0h/%0d",
-                 n_recv, r_tag, r_user, r_status, expected[n_recv].tag,
-                 expected[n_recv].user, expected[n_recv].status);
-        errors++;
+      end else begin
+        expected_seen[match] = 1'b1;
       end
       n_recv++;
     end

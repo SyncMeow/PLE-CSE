@@ -1,4 +1,4 @@
-// Legal dense 9x9x9 R_MAX workload used to measure the single-CU response bound.
+// Synthetic 9x9x9 single-CU pipeline stress that repeatedly evaluates one 64-point cell.
 module tb_cse_worst;
   import ple_cse_pkg::*;
   import cse_cu_pkg::*;
@@ -8,11 +8,10 @@ module tb_cse_worst;
   always #5 clk = ~clk;
 
   logic q_valid, q_ready;
-  query_t q_payload;
+  cse_query_meta_t q_payload;
   logic r_valid, r_ready;
   resp_t r_payload;
-  logic k_valid, k_ready;
-  kill_t k_payload;
+  logic [(1<<TAG_W)-1:0][KILL_GEN_W-1:0] kill_gen;
   logic cse_idle, cse_err;
   logic mem_rd_buf;
   logic [DIR_AW-1:0] mem_dir_addr;
@@ -57,8 +56,7 @@ module tb_cse_worst;
     q_valid = 1'b0;
     q_payload = '0;
     r_ready = 1'b1;
-    k_valid = 1'b0;
-    k_payload = '0;
+    kill_gen = '0;
     hdr_valid = 2'b01;
     hdr_err = '0;
     hdr_n_pts = '0;
@@ -72,13 +70,13 @@ module tb_cse_worst;
     repeat (4) @(posedge clk);
     rst_n = 1'b1;
     @(negedge clk);
-    q_payload.tag = 4'd1;
-    q_payload.user = 16'hbeef;
-    q_payload.env_buf = 1'b0;
-    q_payload.cx = 18'sd20480;
-    q_payload.cy = 18'sd20480;
-    q_payload.cz = 18'sd20480;
-    q_payload.r = R_MAX;
+    q_payload.query.tag = 4'd1;
+    q_payload.query.user = 16'hbeef;
+    q_payload.query.env_buf = 1'b0;
+    q_payload.query.cx = 18'sd20480;
+    q_payload.query.cy = 18'sd20480;
+    q_payload.query.cz = 18'sd20480;
+    q_payload.query.r = R_MAX;
     q_valid = 1'b1;
     do @(posedge clk); while (!q_ready);
     accepted_at = cycles;
@@ -94,12 +92,12 @@ module tb_cse_worst;
       $fatal(1, "wrong dense-workload response");
     @(posedge clk);
     if (!cse_idle) @(posedge clk);
-    $display("TB_CSE_WORST voxels=729 points=46656 latency=%0d limit=%0d", latency, MAX_LAT);
+    $display("TB_CSE_WORST voxels=729 point_evals=46656 latency=%0d limit=%0d", latency, MAX_LAT);
     if (latency >= 64'(MAX_LAT) || cse_err) $fatal(1, "dense-workload latency test failed");
     $finish;
   end
 
   logic unused_memory_controls;
-  assign unused_memory_controls = ^{k_ready, mem_rd_buf, mem_dir_addr, mem_cell_addr, mem_pt_addr};
+  assign unused_memory_controls = ^{mem_rd_buf, mem_dir_addr, mem_cell_addr, mem_pt_addr};
 
 endmodule

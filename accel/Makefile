@@ -3,7 +3,9 @@ BUILD   ?= $(abspath ../build/accel)
 VERI    ?= verilator
 PKG     := rtl/common/ple_cse_pkg.sv
 CSE_PKG := rtl/cse/cse_cu_pkg.sv
-CSE_RTL := $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_cu.sv rtl/cse/cse_env_mem.sv rtl/cse/cse_top.sv
+CSE_RTL := $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_query_fifo.sv rtl/cse/cse_dispatcher.sv \
+           rtl/cse/cse_receiver.sv rtl/cse/cse_cu.sv rtl/cse/cse_env_mem.sv rtl/cse/cse_top.sv \
+           rtl/cse/cse_system.sv
 VFLAGS  := -Wall --assert -Irtl/common
 PLE_PKG := rtl/ple/ple_pkg.sv
 FXDIR   := $(abspath ../sw_rrtc/fx)
@@ -19,12 +21,16 @@ FXLIB_SRC := $(FXDIR)/fx_ref.c $(FXDIR)/fx_env.c $(FXDIR)/fx_ref_stub.c $(SRCDIR
 DPI     := -LDFLAGS $(FXLIB) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
 
-.PHONY: test-cse test-cse-mutant test-ple-drv lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
+.PHONY: test-cse test-cse-unit test-cse-mutant test-ple-drv lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
 
 # every RTL file must lint clean
 lint:
 	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CSE_RTL) --top-module cse_top
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CSE_RTL) --top-module cse_system
 	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_cu.sv --top-module cse_cu
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CSE_PKG) rtl/cse/cse_query_fifo.sv --top-module cse_query_fifo
+	$(VERI) --lint-only $(VFLAGS) $(PKG) $(CSE_PKG) rtl/cse/cse_dispatcher.sv --top-module cse_dispatcher
+	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_receiver.sv --top-module cse_receiver
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/cse/cse_env_mem.sv --top-module cse_env_mem
 	$(VERI) --lint-only $(VFLAGS) $(PKG) rtl/ple/ple_robot_pkg.sv rtl/ple/ple_qd.sv --top-module ple_qd
 	$(VERI) --lint-only $(VFLAGS) $(PKG) $(EVU_RTL) rtl/ple/ple_evu.sv --top-module ple_evu
@@ -68,11 +74,53 @@ test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem_small/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "depth 512/8192 buf0 $$f OK" || echo "depth 512/8192 buf0 $$f DIFF"; done
 
-# Single-CU golden trace replay with randomized response backpressure.
+# Full-array golden trace replay with randomized response backpressure.
 $(BUILD)/tb_cse_trace/Vtb_cse_trace: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv
 	@mkdir -p $(BUILD)/tb_cse_trace
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_trace --top-module tb_cse_trace \
 	    $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv -o Vtb_cse_trace >/dev/null
+
+$(BUILD)/tb_cse_qfifo3/Vtb_cse_query_fifo: $(PKG) $(CSE_PKG) rtl/cse/cse_query_fifo.sv tb/tb_cse_query_fifo.sv
+	@mkdir -p $(BUILD)/tb_cse_qfifo3
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_qfifo3 --top-module tb_cse_query_fifo \
+	    $(PKG) $(CSE_PKG) rtl/cse/cse_query_fifo.sv tb/tb_cse_query_fifo.sv -o Vtb_cse_query_fifo >/dev/null
+
+$(BUILD)/tb_cse_qfifo1/Vtb_cse_query_fifo: $(PKG) $(CSE_PKG) rtl/cse/cse_query_fifo.sv tb/tb_cse_query_fifo.sv
+	@mkdir -p $(BUILD)/tb_cse_qfifo1
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_qfifo1 -GD=1 --top-module tb_cse_query_fifo \
+	    $(PKG) $(CSE_PKG) rtl/cse/cse_query_fifo.sv tb/tb_cse_query_fifo.sv -o Vtb_cse_query_fifo >/dev/null
+
+$(BUILD)/tb_cse_arbiters/Vtb_cse_arbiters: $(PKG) $(CSE_PKG) rtl/cse/cse_dispatcher.sv rtl/cse/cse_receiver.sv tb/tb_cse_arbiters.sv
+	@mkdir -p $(BUILD)/tb_cse_arbiters
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_arbiters --top-module tb_cse_arbiters \
+	    $(PKG) $(CSE_PKG) rtl/cse/cse_dispatcher.sv rtl/cse/cse_receiver.sv \
+	    tb/tb_cse_arbiters.sv -o Vtb_cse_arbiters >/dev/null
+
+test-cse-unit: $(BUILD)/tb_cse_qfifo1/Vtb_cse_query_fifo $(BUILD)/tb_cse_qfifo3/Vtb_cse_query_fifo \
+               $(BUILD)/tb_cse_arbiters/Vtb_cse_arbiters
+	@$< | grep TB_CSE_QFIFO
+	@$(BUILD)/tb_cse_qfifo3/Vtb_cse_query_fifo | grep TB_CSE_QFIFO
+	@$(BUILD)/tb_cse_arbiters/Vtb_cse_arbiters | grep TB_CSE_ARBITERS
+
+$(BUILD)/tb_cse_trace_1/Vtb_cse_trace: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv
+	@mkdir -p $(BUILD)/tb_cse_trace_1
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_trace_1 -GNC=1 -GID=1 -GRD=1 \
+	    --top-module tb_cse_trace $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv -o Vtb_cse_trace >/dev/null
+
+$(BUILD)/tb_cse_trace_3/Vtb_cse_trace: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv
+	@mkdir -p $(BUILD)/tb_cse_trace_3
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_trace_3 -GNC=3 -GID=3 -GRD=3 \
+	    --top-module tb_cse_trace $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv -o Vtb_cse_trace >/dev/null
+
+$(BUILD)/tb_cse_trace_2/Vtb_cse_trace: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv
+	@mkdir -p $(BUILD)/tb_cse_trace_2
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_trace_2 -GNC=2 -GID=4 -GRD=2 \
+	    --top-module tb_cse_trace $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv -o Vtb_cse_trace >/dev/null
+
+$(BUILD)/tb_cse_trace_8/Vtb_cse_trace: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv
+	@mkdir -p $(BUILD)/tb_cse_trace_8
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_trace_8 -GNC=8 -GID=16 -GRD=16 \
+	    --top-module tb_cse_trace $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_trace.sv -o Vtb_cse_trace >/dev/null
 
 $(BUILD)/tb_cse_kill/Vtb_cse_kill: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_kill.sv
 	@mkdir -p $(BUILD)/tb_cse_kill
@@ -84,10 +132,20 @@ $(BUILD)/tb_cse_kill0/Vtb_cse_kill: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv t
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_kill0 -GKE=0 --top-module tb_cse_kill \
 	    $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_kill.sv -o Vtb_cse_kill >/dev/null
 
+$(BUILD)/tb_cse_control/Vtb_cse_control: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_control.sv
+	@mkdir -p $(BUILD)/tb_cse_control
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_control --top-module tb_cse_control \
+	    $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_control.sv -o Vtb_cse_control >/dev/null
+
 $(BUILD)/tb_cse_worst/Vtb_cse_worst: $(PKG) $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_cu.sv tb/tb_cse_worst.sv
 	@mkdir -p $(BUILD)/tb_cse_worst
 	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_worst --top-module tb_cse_worst \
 	    $(PKG) $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_cu.sv tb/tb_cse_worst.sv -o Vtb_cse_worst >/dev/null
+
+$(BUILD)/tb_cse_array_worst/Vtb_cse_array_worst: $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_array_worst.sv
+	@mkdir -p $(BUILD)/tb_cse_array_worst
+	$(VERI) $(TBFLAGS) -Mdir $(BUILD)/tb_cse_array_worst --top-module tb_cse_array_worst \
+	    $(PKG) $(CSE_RTL) tb/ple_cse_if_checker.sv tb/tb_cse_array_worst.sv -o Vtb_cse_array_worst >/dev/null
 
 $(BUILD)/tb_cse_boundary/Vtb_cse_boundary: $(PKG) $(CSE_PKG) rtl/cse/cse_fifo.sv rtl/cse/cse_cu.sv tb/tb_cse_boundary.sv
 	@mkdir -p $(BUILD)/tb_cse_boundary
@@ -108,20 +166,40 @@ test-cse-mutant: $(BUILD)/cse_mutants/Vtb_cse_boundary
 	  echo "cse comparator mutant SURVIVED"; exit 1; \
 	else echo "cse comparator mutant killed: $$(grep -m1 'd^2 == r^2' $(BUILD)/cse_mutants/run.log)"; fi
 
-test-cse: $(BUILD)/tb_cse_trace/Vtb_cse_trace $(BUILD)/tb_cse_kill/Vtb_cse_kill \
-          $(BUILD)/tb_cse_kill0/Vtb_cse_kill $(BUILD)/tb_cse_worst/Vtb_cse_worst \
-          $(BUILD)/tb_cse_boundary/Vtb_cse_boundary test-cse-mutant
+test-cse: $(BUILD)/tb_cse_trace/Vtb_cse_trace $(BUILD)/tb_cse_trace_1/Vtb_cse_trace \
+          $(BUILD)/tb_cse_trace_2/Vtb_cse_trace $(BUILD)/tb_cse_trace_3/Vtb_cse_trace \
+          $(BUILD)/tb_cse_trace_8/Vtb_cse_trace $(BUILD)/tb_cse_kill/Vtb_cse_kill \
+          $(BUILD)/tb_cse_kill0/Vtb_cse_kill $(BUILD)/tb_cse_control/Vtb_cse_control \
+          $(BUILD)/tb_cse_worst/Vtb_cse_worst \
+          $(BUILD)/tb_cse_array_worst/Vtb_cse_array_worst \
+          $(BUILD)/tb_cse_boundary/Vtb_cse_boundary test-cse-unit test-cse-mutant
 	@for p in 1 2 3; do \
 	  $< +env0=$(TRACE)/s0_p$$p +queries=$(TRACE)/s0_p$${p}_seed0_queries.txt \
 	    > $(BUILD)/tb_cse_trace/p$$p.log || exit $$?; \
 	  grep -E 'TB_CSE_TRACE|if_checker' $(BUILD)/tb_cse_trace/p$$p.log; done
+	@$(BUILD)/tb_cse_trace_1/Vtb_cse_trace +env0=$(TRACE)/s0_p1 \
+	  +queries=$(TRACE)/s0_p1_seed0_queries.txt > $(BUILD)/tb_cse_trace_1/p1.log
+	@grep -E 'TB_CSE_TRACE|if_checker' $(BUILD)/tb_cse_trace_1/p1.log
+	@$(BUILD)/tb_cse_trace_2/Vtb_cse_trace +env0=$(TRACE)/s0_p1 \
+	  +queries=$(TRACE)/s0_p1_seed0_queries.txt > $(BUILD)/tb_cse_trace_2/p1.log
+	@grep -E 'TB_CSE_TRACE|if_checker' $(BUILD)/tb_cse_trace_2/p1.log
+	@$(BUILD)/tb_cse_trace_3/Vtb_cse_trace +env0=$(TRACE)/s0_p1 \
+	  +queries=$(TRACE)/s0_p1_seed0_queries.txt > $(BUILD)/tb_cse_trace_3/p1.log
+	@grep -E 'TB_CSE_TRACE|if_checker' $(BUILD)/tb_cse_trace_3/p1.log
+	@$(BUILD)/tb_cse_trace_8/Vtb_cse_trace +env0=$(TRACE)/s0_p1 \
+	  +queries=$(TRACE)/s0_p1_seed0_queries.txt > $(BUILD)/tb_cse_trace_8/p1.log
+	@grep -E 'TB_CSE_TRACE|if_checker' $(BUILD)/tb_cse_trace_8/p1.log
 	@$(BUILD)/tb_cse_kill/Vtb_cse_kill +env0=$(TRACE)/s0_p1 > $(BUILD)/tb_cse_kill/run.log || \
 	  { grep -E 'TB_CSE_KILL|if_checker|ERROR' $(BUILD)/tb_cse_kill/run.log; exit 1; }
 	@grep -E 'TB_CSE_KILL|if_checker' $(BUILD)/tb_cse_kill/run.log
 	@$(BUILD)/tb_cse_kill0/Vtb_cse_kill +env0=$(TRACE)/s0_p1 > $(BUILD)/tb_cse_kill0/run.log || \
 	  { grep -E 'TB_CSE_KILL|if_checker|ERROR' $(BUILD)/tb_cse_kill0/run.log; exit 1; }
 	@grep -E 'TB_CSE_KILL|if_checker' $(BUILD)/tb_cse_kill0/run.log
+	@$(BUILD)/tb_cse_control/Vtb_cse_control +env0=$(TRACE)/s0_p1 > $(BUILD)/tb_cse_control/run.log || \
+	  { grep -E 'TB_CSE_CONTROL|if_checker|ERROR' $(BUILD)/tb_cse_control/run.log; exit 1; }
+	@grep -E 'TB_CSE_CONTROL|if_checker' $(BUILD)/tb_cse_control/run.log
 	@$(BUILD)/tb_cse_worst/Vtb_cse_worst | grep TB_CSE_WORST
+	@$(BUILD)/tb_cse_array_worst/Vtb_cse_array_worst | grep TB_CSE_ARRAY_WORST
 	@$(BUILD)/tb_cse_boundary/Vtb_cse_boundary | grep TB_CSE_BOUNDARY
 
 SMALL_DEF := -DFX_NODE_CAP=32 -DFX_PATH_CAP=8

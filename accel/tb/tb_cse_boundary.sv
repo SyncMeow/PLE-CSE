@@ -8,11 +8,10 @@ module tb_cse_boundary;
   always #5 clk = ~clk;
 
   logic q_valid, q_ready;
-  query_t q_payload;
+  cse_query_meta_t q_payload;
   logic r_valid, r_ready;
   resp_t r_payload;
-  logic k_valid, k_ready;
-  kill_t k_payload;
+  logic [(1<<TAG_W)-1:0][KILL_GEN_W-1:0] kill_gen;
   logic cse_idle, cse_err;
   logic mem_rd_buf;
   logic [DIR_AW-1:0] mem_dir_addr;
@@ -49,8 +48,7 @@ module tb_cse_boundary;
     q_valid = 1'b0;
     q_payload = '0;
     r_ready = 1'b1;
-    k_valid = 1'b0;
-    k_payload = '0;
+    kill_gen = '0;
     hdr_valid = 2'b01;
     hdr_err = '0;
     hdr_n_pts = '0;
@@ -65,12 +63,12 @@ module tb_cse_boundary;
     repeat (4) @(posedge clk);
     rst_n = 1'b1;
     @(negedge clk);
-    q_payload.tag = 4'd9;
-    q_payload.user = 16'h3456;
-    q_payload.cx = 18'sd1003;
-    q_payload.cy = 18'sd1004;
-    q_payload.cz = 18'sd1000;
-    q_payload.r = 14'd5;
+    q_payload.query.tag = 4'd9;
+    q_payload.query.user = 16'h3456;
+    q_payload.query.cx = 18'sd1003;
+    q_payload.query.cy = 18'sd1004;
+    q_payload.query.cz = 18'sd1000;
+    q_payload.query.r = 14'd5;
     q_valid = 1'b1;
     do @(posedge clk); while (!q_ready);
     @(negedge clk);
@@ -83,6 +81,6 @@ module tb_cse_boundary;
   end
 
   logic unused;
-  assign unused = ^{k_ready, cse_idle, cse_err, mem_rd_buf, mem_dir_addr, mem_cell_addr, mem_pt_addr};
+  assign unused = ^{cse_idle, cse_err, mem_rd_buf, mem_dir_addr, mem_cell_addr, mem_pt_addr};
 
 endmodule

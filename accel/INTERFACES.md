@@ -21,7 +21,7 @@
 - **埠**：`rtl/cse/cse_top.sv` 與 `rtl/ple/ple_top.sv` 的埠列表就是合約，兩邊不可自行增減或改名。位寬全部引用 `ple_cse_pkg`（`TAG_W` = 4、`USER_W` = 16、`COORD_W` = 18、`RQ_W` = 14、`R_MAX` = 8192、`status_e`）。
 - **語意**：HIT ⇔ 存在點 p，`Σ(c − p)² ≤ q_r²`（整數、精確）。每筆被接受的查詢恰好一筆回應，回應可亂序，`r_tag`、`r_user` 原樣送回。KILLED 只代表「沒算」。
 - **雙方義務**：C1–C6（CSE）、P1–P6（PLE），見設計文件 4.5。P2 已釐清：K 握手當下已在 Q 上等待的查詢照常送完。
-- **目前單一 CU 選擇（2026-11-10）**：CSE 已支援 K(tag) 與 K(all)，`k_ready` 接 1；預設 `KILL_ENABLE=1`，可設 0 回到「忽略 kill、照常回真正結果」的最低合約。PLE 的 `r_ready` 接 1；`MAX_LAT` = 65,536 cycles（C5：有在途查詢且 `r_ready` 為 1 時，相鄰兩筆回應的間隔上限）。
+- **目前完整 CSE 選擇（2026-11-10）**：預設 4 個完整 CU、Input/Response FIFO 深度各 8，前後 round-robin，跨 CU 回應可亂序。CSE 支援 K(tag) 與 K(all)，`k_ready` 接 1；頂層 generation 加 Input FIFO killed metadata 涵蓋尚未分派及 CU 內工作。預設 `KILL_ENABLE=1`，可設 0 回到「忽略 kill、照常回真正結果」的最低合約。`MAX_LAT` = 65,536 cycles。
 - **驗證**：`tb/ple_cse_if_checker.sv` 是被動監看模組，PLE 測試、CSE 測試、整合測試都掛同一個。它檢查握手穩定性（H1–H3）、C1/C2、C4（逐筆檢查 KILLED 的生命週期）、C5、C6、P2、P5，以及測試結束時是否全部回應。`make -C Platform/accel test-checker` 是它的自測：乾淨流量 0 個錯誤，8 種植入的違規全部被抓到。
 - **待辦**：雙方簽核後把狀態改成「凍結 v1.0」。
 
@@ -36,6 +36,7 @@
 ## I3：環境記憶體埠（2026-11-08 決定）
 
 - **模組**：`rtl/cse/cse_env_mem.sv`（雙緩衝）。它是 CSE 核心與記憶體之間的邊界，建構引擎之後也從這裡接入。內部是參考實作（一般陣列）；CSE 負責人可以改成分 bank 或複製的 BRAM，**但埠與延遲不可變**。
+- **層級**：`cse_env_mem` 不在 `cse_top` 內；`cse_top` 對外提供 N_CU 組讀取位址／資料及 header 介面。現有模擬由 `cse_system.sv` 在上一層連接 `cse_top` 與 `cse_env_mem`。
 - **讀取埠**：參數 `NRD` 組（每個 CU 一組），每組有三個獨立的同步讀取埠，每個 cycle 都可以同時讀：
   - DIR：`dir_addr[12:0]` → `dir_data[15:0]`
   - CELL：`cell_addr[11:0]` → `cell_data[127:0]`

@@ -5,6 +5,11 @@ package cse_cu_pkg;
   localparam int KILL_GEN_W = 32;
 
   typedef struct packed {
+    query_t                  query;
+    logic [KILL_GEN_W-1:0]  birth_gen;
+  } cse_query_meta_t;
+
+  typedef struct packed {
     logic [TAG_W-1:0]          tag;
     logic [USER_W-1:0]         user;
     logic                      kill_on_hit;

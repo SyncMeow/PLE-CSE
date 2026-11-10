@@ -1,5 +1,9 @@
-// Replay one golden CSE trace through the single-CU RTL with response backpressure.
-module tb_cse_trace;
+// Replay one golden CSE trace through the CU array with response backpressure and unordered checking.
+module tb_cse_trace #(
+    parameter int unsigned NC = 4,
+    parameter int unsigned ID = 8,
+    parameter int unsigned RD = 8
+);
   import ple_cse_pkg::*;
 
   localparam int MAX_QUERY = 200000;
@@ -24,14 +28,14 @@ module tb_cse_trace;
 
   typedef struct packed {
     logic [TAG_W-1:0] tag;
-    logic [USER_W-1:0] user;
     status_e status;
   } expected_t;
   expected_t expected[MAX_QUERY];
+  bit seen[MAX_QUERY];
   int unsigned n_sent, n_recv, errors;
   logic [15:0] lfsr;
 
-  cse_top dut (.*);
+  cse_system #(.N_CU(NC), .INPUT_FIFO_DEPTH(ID), .RESPONSE_FIFO_DEPTH(RD)) dut (.*);
   ple_cse_if_checker #(.AUTO_KILL(1'b0)) u_checker (.*);
 
   always_ff @(posedge clk) begin
@@ -46,18 +50,20 @@ module tb_cse_trace;
 
   always @(posedge clk) begin
     if (rst_n && r_valid && r_ready) begin
-      if (n_recv >= n_sent) begin
-        $display("TB_CSE_TRACE ERROR response without expected entry");
+      int unsigned index;
+      index = int'(r_user);
+      if (index >= n_sent || seen[index]) begin
+        $display("TB_CSE_TRACE ERROR unexpected/duplicate response tag=%0d user=%0h status=%0d",
+                 r_tag, r_user, r_status);
         errors++;
       end else begin
-        if (r_tag != expected[n_recv].tag || r_user != expected[n_recv].user ||
-            r_status != expected[n_recv].status) begin
+        if (r_tag != expected[index].tag || r_status != expected[index].status) begin
           if (errors < 20)
-            $display("TB_CSE_TRACE ERROR n=%0d got tag=%0d user=%0h status=%0d expected tag=%0d user=%0h status=%0d",
-                     n_recv, r_tag, r_user, r_status, expected[n_recv].tag,
-                     expected[n_recv].user, expected[n_recv].status);
+            $display("TB_CSE_TRACE ERROR index=%0d got tag=%0d status=%0d expected tag=%0d status=%0d",
+                     index, r_tag, r_status, expected[index].tag, expected[index].status);
           errors++;
         end
+        seen[index] = 1'b1;
         n_recv++;
       end
     end
@@ -70,11 +76,11 @@ module tb_cse_trace;
   );
     if (n_sent >= MAX_QUERY) $fatal(1, "too many trace queries");
     expected[n_sent].tag = TAG_W'(tag_i);
-    expected[n_sent].user = USER_W'(user_i);
     expected[n_sent].status = (hit_i != 0) ? ST_HIT : ST_MISS;
+    seen[n_sent] = 1'b0;
     @(negedge clk);
     q_tag = TAG_W'(tag_i);
-    q_user = USER_W'(user_i);
+    q_user = USER_W'(n_sent) ^ (USER_W'(user_i) & '0);
     q_kill_on_hit = koh_i[0];
     q_env_buf = buf_i[0];
     q_cx = COORD_W'(cx_i);

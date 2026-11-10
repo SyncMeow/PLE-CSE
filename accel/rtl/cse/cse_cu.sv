@@ -12,13 +12,11 @@ module cse_cu
     input  logic                       rst_n,
     input  logic                       q_valid,
     output logic                       q_ready,
-    input  query_t                     q_payload,
+    input  cse_query_meta_t            q_payload,
     output logic                       r_valid,
     input  logic                       r_ready,
     output resp_t                      r_payload,
-    input  logic                       k_valid,
-    output logic                       k_ready,
-    input  kill_t                      k_payload,
+    input  logic [(1<<TAG_W)-1:0][KILL_GEN_W-1:0] kill_gen,
     output logic                       cse_idle,
     output logic                       cse_err,
     output logic                       mem_rd_buf,
@@ -35,7 +33,6 @@ module cse_cu
     input  logic [1:0][2:0][PT_W-1:0] hdr_ghi
 );
 
-  localparam int NTAG = 1 << TAG_W;
   localparam int PEND_W = (MAX_PTS_OUTSTANDING <= 1) ? 1 : $clog2(MAX_PTS_OUTSTANDING + 1);
   localparam logic signed [18:0] GRID_LAST = 19'(ENV_G-1);
 
@@ -45,9 +42,7 @@ module cse_cu
     $error("cse_cu: MAX_PTS_OUTSTANDING must be at least one");
   end
 
-  logic [KILL_GEN_W-1:0] kill_gen[NTAG];
-  logic [KILL_GEN_W-1:0] kill_gen_eff[NTAG];
-  logic k_fire, q_fire, r_fire;
+  logic q_fire, r_fire;
 
   cse_ball_t s0_payload, s0_new_payload;
   logic s0_valid, s0_ready;
@@ -94,7 +89,7 @@ module cse_cu
   logic unused_internal;
 
   function automatic logic ctx_cancelled(input cse_ctx_t ctx);
-    return (KILL_ENABLE && (ctx.birth_gen != kill_gen_eff[ctx.tag])) | (1'b0 & ^ctx);
+    return (KILL_ENABLE && (ctx.birth_gen != kill_gen[ctx.tag])) | (1'b0 & ^ctx);
   endfunction
 
   function automatic logic [4:0] clamp_grid(input logic signed [18:0] value);
@@ -103,36 +98,8 @@ module cse_cu
     return value[4:0];
   endfunction
 
-  assign k_ready = rst_n;
-  assign k_fire  = k_valid && k_ready;
   assign q_fire  = q_valid && q_ready;
   assign r_fire  = r_valid && r_ready;
-
-  always_comb begin
-    for (int t = 0; t < NTAG; ++t) begin
-      kill_gen_eff[t] = kill_gen[t];
-      if (KILL_ENABLE && k_fire && (k_payload.all || k_payload.tag == t[TAG_W-1:0]))
-        kill_gen_eff[t] = kill_gen[t] + 1'b1;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      for (int t = 0; t < NTAG; ++t) kill_gen[t] <= '0;
-    end else if (KILL_ENABLE && k_fire) begin
-      for (int t = 0; t < NTAG; ++t)
-        if (k_payload.all || k_payload.tag == t[TAG_W-1:0]) kill_gen[t] <= kill_gen[t] + 1'b1;
-    end
-  end
-
-`ifndef SYNTHESIS
-  always_ff @(posedge clk) begin
-    if (rst_n && KILL_ENABLE && k_fire && outstanding != 0)
-      for (int t = 0; t < NTAG; ++t)
-        if ((k_payload.all || k_payload.tag == t[TAG_W-1:0]) && (&kill_gen[t]))
-          $error("cse_cu: kill generation wrapped with work outstanding");
-  end
-`endif
 
   // S0: capture a query and compute its exact integer bounding box and voxel range.
   always_comb begin : p_s0_preprocess
@@ -143,11 +110,11 @@ module cse_cu
     logic empty_axis, global_cull;
     logic [27:0] radius_u;
 
-    cx = $signed({q_payload.cx[COORD_W-1], q_payload.cx});
-    cy = $signed({q_payload.cy[COORD_W-1], q_payload.cy});
-    cz = $signed({q_payload.cz[COORD_W-1], q_payload.cz});
-    radius = $signed({5'b0, q_payload.r});
-    radius_u = {14'b0, q_payload.r};
+    cx = $signed({q_payload.query.cx[COORD_W-1], q_payload.query.cx});
+    cy = $signed({q_payload.query.cy[COORD_W-1], q_payload.query.cy});
+    cz = $signed({q_payload.query.cz[COORD_W-1], q_payload.query.cz});
+    radius = $signed({5'b0, q_payload.query.r});
+    radius_u = {14'b0, q_payload.query.r};
     sx_lo = cx - radius;
     sy_lo = cy - radius;
     sz_lo = cz - radius;
@@ -160,12 +127,12 @@ module cse_cu
     gx_hi = sx_hi >>> ENV_QSHIFT;
     gy_hi = sy_hi >>> ENV_QSHIFT;
     gz_hi = sz_hi >>> ENV_QSHIFT;
-    hglo_x = $signed({3'b000, hdr_glo[q_payload.env_buf][0]});
-    hglo_y = $signed({3'b000, hdr_glo[q_payload.env_buf][1]});
-    hglo_z = $signed({3'b000, hdr_glo[q_payload.env_buf][2]});
-    hghi_x = $signed({3'b000, hdr_ghi[q_payload.env_buf][0]});
-    hghi_y = $signed({3'b000, hdr_ghi[q_payload.env_buf][1]});
-    hghi_z = $signed({3'b000, hdr_ghi[q_payload.env_buf][2]});
+    hglo_x = $signed({3'b000, hdr_glo[q_payload.query.env_buf][0]});
+    hglo_y = $signed({3'b000, hdr_glo[q_payload.query.env_buf][1]});
+    hglo_z = $signed({3'b000, hdr_glo[q_payload.query.env_buf][2]});
+    hghi_x = $signed({3'b000, hdr_ghi[q_payload.query.env_buf][0]});
+    hghi_y = $signed({3'b000, hdr_ghi[q_payload.query.env_buf][1]});
+    hghi_z = $signed({3'b000, hdr_ghi[q_payload.query.env_buf][2]});
     global_cull = (sx_hi < hglo_x) || (sx_lo > hghi_x) ||
                   (sy_hi < hglo_y) || (sy_lo > hghi_y) ||
                   (sz_hi < hglo_z) || (sz_lo > hghi_z);
@@ -173,13 +140,13 @@ module cse_cu
                  (gx_lo > GRID_LAST) || (gy_lo > GRID_LAST) || (gz_lo > GRID_LAST);
 
     s0_new_payload = '0;
-    s0_new_payload.ctx.tag         = q_payload.tag;
-    s0_new_payload.ctx.user        = q_payload.user;
-    s0_new_payload.ctx.kill_on_hit = q_payload.kill_on_hit;
-    s0_new_payload.ctx.env_buf     = q_payload.env_buf;
-    s0_new_payload.ctx.cx          = q_payload.cx;
-    s0_new_payload.ctx.cy          = q_payload.cy;
-    s0_new_payload.ctx.cz          = q_payload.cz;
+    s0_new_payload.ctx.tag         = q_payload.query.tag;
+    s0_new_payload.ctx.user        = q_payload.query.user;
+    s0_new_payload.ctx.kill_on_hit = q_payload.query.kill_on_hit;
+    s0_new_payload.ctx.env_buf     = q_payload.query.env_buf;
+    s0_new_payload.ctx.cx          = q_payload.query.cx;
+    s0_new_payload.ctx.cy          = q_payload.query.cy;
+    s0_new_payload.ctx.cz          = q_payload.query.cz;
     s0_new_payload.ctx.r2          = radius_u * radius_u;
     s0_new_payload.ctx.bmin_x      = sx_lo;
     s0_new_payload.ctx.bmin_y      = sy_lo;
@@ -187,8 +154,8 @@ module cse_cu
     s0_new_payload.ctx.bmax_x      = sx_hi;
     s0_new_payload.ctx.bmax_y      = sy_hi;
     s0_new_payload.ctx.bmax_z      = sz_hi;
-    s0_new_payload.ctx.birth_gen   = kill_gen_eff[q_payload.tag];
-    s0_new_payload.ctx.error       = !hdr_valid[q_payload.env_buf] || hdr_err[q_payload.env_buf];
+    s0_new_payload.ctx.birth_gen   = q_payload.birth_gen;
+    s0_new_payload.ctx.error       = !hdr_valid[q_payload.query.env_buf] || hdr_err[q_payload.query.env_buf];
     s0_new_payload.lo[0]           = clamp_grid(gx_lo);
     s0_new_payload.lo[1]           = clamp_grid(gy_lo);
     s0_new_payload.lo[2]           = clamp_grid(gz_lo);
@@ -196,7 +163,7 @@ module cse_cu
     s0_new_payload.hi[1]           = clamp_grid(gy_hi);
     s0_new_payload.hi[2]           = clamp_grid(gz_hi);
     s0_new_payload.skip_search     = s0_new_payload.ctx.error ||
-                                     (hdr_n_pts[q_payload.env_buf] == 0) || global_cull || empty_axis;
+                                     (hdr_n_pts[q_payload.query.env_buf] == 0) || global_cull || empty_axis;
   end
 
   assign q_ready = rst_n && (!s0_valid || s0_ready);
@@ -517,5 +484,29 @@ module cse_cu
   assign cse_idle = (outstanding == 0);
   assign unused_internal = ^{s1_ball.skip_search, s2_voxel.kind, s2_voxel.dir_addr,
                              dir_word.rsvd, cell_word.rsvd};
+
+`ifndef SYNTHESIS
+  longint unsigned stat_queries, stat_responses, stat_dir_reads, stat_cell_reads, stat_point_reads;
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      stat_queries <= 0;
+      stat_responses <= 0;
+      stat_dir_reads <= 0;
+      stat_cell_reads <= 0;
+      stat_point_reads <= 0;
+    end else begin
+      if (q_fire) stat_queries <= stat_queries + 1;
+      if (r_fire) stat_responses <= stat_responses + 1;
+      if ((s2_state == S2_IDLE) && voxel_valid && (voxel_payload.kind == CSE_VOXEL) &&
+          !ctx_cancelled(voxel_payload.ctx)) stat_dir_reads <= stat_dir_reads + 1;
+      if ((s2_state == S2_DIR_WAIT) && !ctx_cancelled(s2_voxel.ctx) && dir_word.occ)
+        stat_cell_reads <= stat_cell_reads + 1;
+      if (pt_issue) stat_point_reads <= stat_point_reads + 1;
+    end
+  end
+
+  final $display("CSE_CU_STATS %m q=%0d r=%0d dir=%0d cell=%0d pts=%0d",
+                 stat_queries, stat_responses, stat_dir_reads, stat_cell_reads, stat_point_reads);
+`endif
 
 endmodule

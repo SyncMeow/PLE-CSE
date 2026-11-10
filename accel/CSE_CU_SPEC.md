@@ -2,7 +2,7 @@
 
 日期：2026-11-09。狀態：交接提案，尚未完成 RTL 或驗證。
 
-範圍更新：完整 CSE 的交付以 `CSE_SPEC.md` 為準，已包含 dispatcher、CU array 與 receiver。本文件保留為 CU 內部詳細規格；以下「本次只實作單 CU」及「不實作 array」的舊範圍限制由完整規格取代。CU 的取消 generation 在本地 CU 接受時捕捉，不能與全域輸入 FIFO 的接受時點混用。
+範圍更新：完整 CSE 的交付以 `CSE_SPEC.md` 為準，已包含 dispatcher、CU array 與 receiver。本文件保留為 CU 內部詳細規格；以下「本次只實作單 CU」及「不實作 array」的舊範圍限制由完整規格取代。完整 CSE 的輸入 FIFO 直接支援 kill：取消隊首走 receiver 的 KILLED 旁路，不進 CU。已展示 CU valid 的工作不能撤回，仍由 CU 接手取消。取消 generation 統一在 cse_top 接受球時捕捉，原值一路傳入 CU；CU 不能在本地接受時重新捕捉而遺失先前 kill。
 
 ## 1. 任務與已確認的選擇
 
@@ -305,7 +305,7 @@ kill 必須涵蓋所有內部 FIFO、等待中的輸出與讀取，不只是正�
 
 ```text
 kill_gen[16]：每個 tag 的 generation 計數器
-球 context：保存接受當下的 birth_gen
+球 context：保存 cse_top Q 接受當下的 birth_gen，跨 FIFO 與 dispatcher 保留
 
 K(tag) 握手：該 tag 的 kill_gen + 1
 K(all) 握手：全部 tag 的 kill_gen + 1
@@ -313,13 +313,13 @@ K(all) 握手：全部 tag 的 kill_gen + 1
 球被取消 iff birth_gen != kill_gen[球.tag]
 ```
 
-Q 與命中它的 K 同 cycle 握手時，新球必須保存「增加後」的 generation，因此不受本次 K 影響。其餘既有球保存舊值，會被判定取消。
+此處 Q 指 cse_top 的外部 Q。外部 Q 與命中它的 K 同 cycle 握手時，新球保存「增加後」的 generation，因此不受本次 K 影響。CU 本地新接受但早已由 cse_top 接受的球仍屬既有球，不能重新取 birth_gen。獨立 CU 測試 wrapper 可在測試輸入握手時建立同等識別。
 
 需要在 kill 發生當 cycle 立即停止新工作時，使用 effective_gen（包含當次 K 的 next 值）判定既有 context。內部 token 不必改寫，payload 可以保持穩定；移到任何級、停在任何 FIFO 都能以 birth_gen 辨識取消。
 
-這是 16 個 tag 的取消記錄，不是多球查詢槽，也不負責排程。沒有取消的舊球即使同 tag 仍可共存；新球捕捉最新 generation 即可。
+整個 CSE 共用一份 16 個 tag 的取消記錄，CU 讀取全域世代；它不是多球查詢槽，也不負責排程。沒有取消的舊球即使同 tag 仍可共存；新球捕捉最新 generation 即可。
 
-generation 必須防止回繞別名。可採 32 bit，模擬加入檢查：generation 即將回繞且仍有在途球時報錯；只有確認整個 CU 已排空時才可安全重設。若不採本方案，替代設計必須通過本節所有時序測試，尤其 FIFO 與停等 END 的取消。
+generation 必須防止回繞別名。可採 32 bit，模擬加入檢查：generation 即將回繞且仍有在途球時報錯；只有確認整個 CSE 已排空、且同 cycle 沒有接受新球時，才可安全重設。若不採本方案，替代設計必須通過本節所有時序測試，尤其 FIFO 與停等 END 的取消。
 
 S4 已鎖定的結果不依 generation 改寫。generation 變動本身不產生回應，不得把同 tag 的多顆球合成一筆回應。
 
