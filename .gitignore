@@ -1,0 +1,10 @@
+build/
+.Xil/
+__pycache__/
+*.pyc
+*.log
+*.jou
+*.backup*
+*Zone.Identifier
+CLAUDE.md
+records/

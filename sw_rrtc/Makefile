@@ -213,4 +213,5 @@ clean:
 FORCE:
 .PHONY: all host exp-ab regen validate run sim clean FORCE
 
-include ../hw/tb/sim.mk
+# CPU model for sim / fx-sim: present only inside the SoC repo (Platform/hw/tb/sim.mk)
+-include ../hw/tb/sim.mk
