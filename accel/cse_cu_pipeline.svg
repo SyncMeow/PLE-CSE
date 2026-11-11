@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 420" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#000"/>
+    </marker>
+  </defs>
+  <rect width="1240" height="420" fill="#fff"/>
+
+  <!-- CU container -->
+  <rect x="50" y="20" width="1120" height="270" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="66" y="50" font-size="24" font-weight="bold">CU</text>
+
+  <!-- kill bus -->
+  <line x1="290" y1="70" x2="980" y2="70" stroke="#000" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="635" y="62" text-anchor="middle" font-size="13">kill: birth_gen ≠ kill_gen[tag]</text>
+  <g stroke="#000" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)">
+    <line x1="335" y1="70" x2="335" y2="100"/>
+    <line x1="580" y1="70" x2="580" y2="100"/>
+    <line x1="865" y1="70" x2="865" y2="100"/>
+  </g>
+
+  <!-- stages -->
+  <g stroke="#000" stroke-width="1.5" fill="#fff">
+    <rect x="80" y="100" width="170" height="150"/>
+    <rect x="270" y="100" width="130" height="150"/>
+    <rect x="490" y="100" width="180" height="150"/>
+    <rect x="760" y="100" width="210" height="150"/>
+    <rect x="990" y="100" width="160" height="150"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="165" y="128" font-size="17" font-weight="bold">S0</text>
+    <text x="165" y="148" font-size="15" font-weight="bold">Preprocess</text>
+    <text x="165" y="176" font-size="13">r², sphere AABB</text>
+    <text x="165" y="196" font-size="13">voxel range</text>
+    <text x="165" y="216" font-size="13">global AABB cull</text>
+
+    <text x="335" y="128" font-size="17" font-weight="bold">S1</text>
+    <text x="335" y="148" font-size="15" font-weight="bold">Voxel walk</text>
+    <text x="335" y="176" font-size="13">x → y → z</text>
+    <text x="335" y="196" font-size="13">1 voxel / cycle</text>
+
+    <text x="580" y="128" font-size="17" font-weight="bold">S2</text>
+    <text x="580" y="148" font-size="15" font-weight="bold">DIR / CELL lookup</text>
+    <text x="580" y="176" font-size="13">skip empty voxel</text>
+    <text x="580" y="196" font-size="13">cell AABB cull</text>
+
+    <text x="865" y="128" font-size="17" font-weight="bold">S3</text>
+    <text x="865" y="148" font-size="15" font-weight="bold">Point distance</text>
+    <text x="865" y="176" font-size="13">1 point / cycle</text>
+    <text x="865" y="196" font-size="13">Σ (c − p)² ≤ r²</text>
+    <text x="865" y="216" font-size="13">stop at first HIT</text>
+
+    <text x="1070" y="128" font-size="17" font-weight="bold">S4</text>
+    <text x="1070" y="148" font-size="15" font-weight="bold">Response</text>
+    <text x="1070" y="176" font-size="13">ERROR › HIT</text>
+    <text x="1070" y="196" font-size="13">› KILLED › MISS</text>
+  </g>
+
+  <!-- FIFOs -->
+  <g stroke="#000" stroke-width="1.5" fill="#fff2cc">
+    <rect x="420" y="150" width="50" height="50"/>
+    <rect x="690" y="150" width="50" height="50"/>
+  </g>
+  <g stroke="#000" stroke-width="1">
+    <line x1="437" y1="150" x2="437" y2="200"/><line x1="453" y1="150" x2="453" y2="200"/>
+    <line x1="707" y1="150" x2="707" y2="200"/><line x1="723" y1="150" x2="723" y2="200"/>
+  </g>
+  <g text-anchor="middle" font-size="13">
+    <text x="445" y="222">voxel</text><text x="445" y="238">FIFO</text>
+    <text x="715" y="222">cell</text><text x="715" y="238">FIFO</text>
+  </g>
+
+  <!-- flow -->
+  <g stroke="#000" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="10" y1="175" x2="80" y2="175"/>
+    <line x1="250" y1="175" x2="270" y2="175"/>
+    <line x1="400" y1="175" x2="420" y2="175"/>
+    <line x1="470" y1="175" x2="490" y2="175"/>
+    <line x1="670" y1="175" x2="690" y2="175"/>
+    <line x1="740" y1="175" x2="760" y2="175"/>
+    <line x1="970" y1="175" x2="990" y2="175"/>
+    <line x1="1150" y1="175" x2="1230" y2="175"/>
+  </g>
+  <text x="30" y="166" text-anchor="middle" font-size="15" font-weight="bold">Q</text>
+  <text x="1210" y="166" text-anchor="middle" font-size="15" font-weight="bold">R</text>
+
+  <!-- environment memory ports -->
+  <g stroke="#000" stroke-width="1.5" fill="#e6e6e6">
+    <rect x="470" y="330" width="100" height="60"/>
+    <rect x="590" y="330" width="100" height="60"/>
+    <rect x="790" y="330" width="150" height="60"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="520" y="356" font-size="15" font-weight="bold">DIR</text><text x="520" y="376" font-size="13">8000 × 16b</text>
+    <text x="640" y="356" font-size="15" font-weight="bold">CELL</text><text x="640" y="376" font-size="13">1024 × 128b</text>
+    <text x="865" y="356" font-size="15" font-weight="bold">PTS</text><text x="865" y="376" font-size="13">16384 × 48b</text>
+  </g>
+  <g stroke="#000" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)">
+    <line x1="520" y1="250" x2="520" y2="330"/>
+    <line x1="640" y1="250" x2="640" y2="330"/>
+    <line x1="865" y1="250" x2="865" y2="330"/>
+  </g>
+</svg>

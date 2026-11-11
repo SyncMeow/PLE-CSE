@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 320" font-family="Arial, Helvetica, sans-serif">
+  <rect width="1240" height="320" fill="#fff"/>
+    <line x1="150" y1="70" x2="1170" y2="70" stroke="#000" stroke-width="1.5"/>
+  <text x="40" y="76" font-size="17" font-weight="bold">round 0</text>
+  <circle cx="192.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="235.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="277.5" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="320.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="362.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="405.0" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="447.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="490.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="532.5" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="575.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="617.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="660.0" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="702.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="745.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="787.5" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="830.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="872.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="915.0" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="957.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1000.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1042.5" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="1085.0" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1127.5" cy="70" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1170.0" cy="70" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="150" cy="70" r="5" fill="#000"/>
+  <line x1="150" y1="160" x2="1170" y2="160" stroke="#000" stroke-width="1.5"/>
+  <text x="40" y="166" font-size="17" font-weight="bold">round 1</text>
+  <circle cx="192.5" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="235.0" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="277.5" cy="160" r="6" fill="#bbb"/>
+  <circle cx="320.0" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="362.5" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="405.0" cy="160" r="6" fill="#bbb"/>
+  <circle cx="447.5" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="490.0" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="532.5" cy="160" r="6" fill="#bbb"/>
+  <circle cx="575.0" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="617.5" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="660.0" cy="160" r="6" fill="#bbb"/>
+  <circle cx="702.5" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="745.0" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="787.5" cy="160" r="6" fill="#bbb"/>
+  <circle cx="830.0" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="872.5" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="915.0" cy="160" r="6" fill="#bbb"/>
+  <circle cx="957.5" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1000.0" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="1042.5" cy="160" r="6" fill="#bbb"/>
+  <circle cx="1085.0" cy="160" r="4" fill="#fff" stroke="#999" stroke-width="1"/>
+  <circle cx="1127.5" cy="160" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="1170.0" cy="160" r="6" fill="#bbb"/>
+  <circle cx="150" cy="160" r="5" fill="#000"/>
+  <line x1="150" y1="250" x2="1170" y2="250" stroke="#000" stroke-width="1.5"/>
+  <text x="40" y="256" font-size="17" font-weight="bold">round 2</text>
+  <circle cx="192.5" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="235.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="277.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="320.0" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="362.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="405.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="447.5" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="490.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="532.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="575.0" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="617.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="660.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="702.5" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="745.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="787.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="830.0" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="872.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="915.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="957.5" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="1000.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="1042.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="1085.0" cy="250" r="9" fill="#2a6fc4" stroke="#000" stroke-width="1.5"/>
+  <circle cx="1127.5" cy="250" r="6" fill="#bbb"/>
+  <circle cx="1170.0" cy="250" r="6" fill="#bbb"/>
+  <circle cx="150" cy="250" r="5" fill="#000"/>
+  <text x="150" y="300" text-anchor="middle" font-size="16" font-weight="bold">start</text>
+  <text x="1170" y="300" text-anchor="middle" font-size="16" font-weight="bold">end</text>
+</svg>

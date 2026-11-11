@@ -107,6 +107,30 @@ int fx_ref_env_load(int i, int flat)
     fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &ref_env);
     return ref_env.valid ? (int)ref_env.n_pts : -1;
 }
+// 32-bit word w of entry addr of the loaded environment in the cse_env_mem write-port layout (fx_env_dump):
+// region 0 HDR (word addr), 1 DIR, 2 CELL (w = 0..3 of the 128-bit word), 3 PTS (w 0 = {y, x}, 1 = z)
+int fx_ref_env_word(int region, int addr, int w)
+{
+    const fx_env_t *e = &ref_env;
+    if (region == 0) {
+        static const int k3[9] = {0, 0, 0, 0, 1, 2, 0, 1, 2};
+        if (addr == 0) return (e->err ? 2 : 0) | (e->valid ? 1 : 0);
+        if (addr == 1) return (int)e->n_pts;
+        if (addr == 2) return (int)e->n_cells;
+        return addr < 6 ? e->glo[k3[addr]] : e->ghi[k3[addr]];
+    }
+    if (region == 1) return e->dir[addr];
+    if (region == 2) {
+        const env_cell_t *c = &e->cell[addr];
+        unsigned __int128 v = (unsigned __int128)c->base | ((unsigned __int128)(c->count & 0x3ffu) << 16);
+        for (int k = 0; k < 3; ++k) {
+            v |= (unsigned __int128)(c->lo[k] & 0x7ffu) << (26 + 11 * k);
+            v |= (unsigned __int128)(c->hi[k] & 0x7ffu) << (59 + 11 * k);
+        }
+        return (int)(uint32_t)(v >> (32 * w));
+    }
+    return w == 0 ? (int)((uint32_t)e->py[addr] << 16 | e->px[addr]) : e->pz[addr];
+}
 int fx_ref_prob_valid(int i) { return i >= 0 && i < (int)n_problems && problems[i].valid; }
 int fx_ref_cse(int cx, int cy, int cz, int rq) { return fx_cse_ref(&ref_env, cx, cy, cz, (uint32_t)rq); }
 

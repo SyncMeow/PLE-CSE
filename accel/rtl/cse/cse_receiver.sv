@@ -25,15 +25,15 @@ module cse_receiver
   end
 
   always_comb begin : p_scan
-    int candidate;
+    logic [SRC_W:0] candidate;                       // narrow index math: a 32-bit int crashes Vivado 2024.1 synth
     select_found = 1'b0;
     select_idx = '0;
     for (int offset = 0; offset < N_SRC; ++offset) begin
-      candidate = int'(rr_ptr) + offset;
-      if (candidate >= N_SRC) candidate = candidate - N_SRC;
-      if (!select_found && source_valid[candidate]) begin
+      candidate = {1'b0, rr_ptr} + (SRC_W + 1)'(offset);
+      if (candidate >= (SRC_W + 1)'(N_SRC)) candidate = candidate - (SRC_W + 1)'(N_SRC);
+      if (!select_found && source_valid[candidate[SRC_W-1:0]]) begin
         select_found = 1'b1;
-        select_idx = SRC_W'(candidate);
+        select_idx = candidate[SRC_W-1:0];
       end
     end
   end

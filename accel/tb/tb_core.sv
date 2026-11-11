@@ -46,7 +46,11 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
       .iterations, .dd_rejects, .edges, .nn_queries, .poses(), .size_start, .size_goal, .path_len, .pr_idx, .pr_q,
       .q_valid, .q_ready, .q_tag, .q_user, .q_kill_on_hit, .q_env_buf, .q_cx, .q_cy, .q_cz, .q_r,
       .r_valid, .r_ready, .r_tag, .r_user, .r_status, .k_valid, .k_ready, .k_all, .k_tag);
+`ifdef RTL_CSE
+  cse_rtl #(.AK(AK)) u_cse (.*);                            // real CSE RTL, environment loaded through its write port
+`else
   cse_bfm #(.AK(AK)) u_cse (.*);
+`endif
   ple_cse_if_checker #(.AUTO_KILL(AK)) u_chk (.*);
 
   int errs = 0, runs = 0, solved = 0, failed_iter = 0, failed_cap = 0, env_errs = 0, total_iter = 0;
@@ -165,6 +169,14 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
     runs++;
   endtask
 
+  // golden environment of problem i; with the RTL CSE also copied into its environment memory
+  task automatic env_load(input int i);
+    if (fx_ref_env_load(i, int'(FLAT)) < 0) $fatal(1, "environment build failed");
+`ifdef RTL_CSE
+    u_cse.load_env();
+`endif
+  endtask
+
   int perf = 0;
   initial begin
     int nprob = 14, nseed = 2, iters = 3000, extra = 1, pfirst = 0, gfirst, glast, directed = (RANGE == (1 << 24) && CAP == 1024) ? 1 : 0;
@@ -186,13 +198,13 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
     rst_n = 1'b1;
     if ($value$plusargs("gfirst=%d", gfirst) && $value$plusargs("glast=%d", glast)) begin   // global problem range
       for (int i = gfirst; i <= glast; ++i) if (fx_ref_prob_valid(i) != 0) begin
-        if (fx_ref_env_load(i, int'(FLAT)) < 0) $fatal(1, "environment build failed");
+        env_load(i);
         for (int sd = 0; sd < nseed; ++sd) do_run(i, sd, iters, 1'b0);
       end
       nprob = 0;
     end
     for (int p = pfirst; p < pfirst + nprob && p < 14; ++p) begin
-      if (fx_ref_env_load(plist[p], int'(FLAT)) < 0) $fatal(1, "environment build failed");
+      env_load(plist[p]);
       for (int sd = 0; sd < nseed; ++sd) do_run(plist[p], sd, iters, 1'b0);
     end
     if (directed != 0) begin                                     // DD check with rad^2 == nd2 << 24 (fx_cov_search dd)
@@ -200,7 +212,7 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
       for (int d = 0; d < 2; ++d) begin
         int c0, g;
         c0 = cov_ddeq;
-        if (fx_ref_env_load(dl[d][0], int'(FLAT)) < 0) $fatal(1, "environment build failed");
+        env_load(dl[d][0]);
         fx_ref_set_radius(dl[d][2]); cfg_radius = 32'(dl[d][2]);
         do_run(dl[d][0], dl[d][1], iters, 1'b0);
         g = fx_ref_cov_dd_eq();
@@ -213,7 +225,7 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
         int pl[3] = '{160, 650, 410}, kl[3] = '{1, 3, 2};
         int c0, g;
         c0 = cov_conn0;
-        if (fx_ref_env_load(pl[d], int'(FLAT)) < 0) $fatal(1, "environment build failed");
+        env_load(pl[d]);
         fx_ref_set_force_conn0(kl[d]); force_conn0_at = kl[d];
         do_run(pl[d], 0, iters, 1'b0);
         g = fx_ref_cov_conn0();
@@ -224,10 +236,10 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
     end
     if (extra != 0) begin
       for (int p = 0; p < 4; ++p) begin                        // FAIL_ITER: max iterations reached
-        if (fx_ref_env_load(plist[p], int'(FLAT)) < 0) $fatal(1, "environment build failed");
+        env_load(plist[p]);
         do_run(plist[p], 5, 3 + 4 * p, 1'b0);
       end
-      if (fx_ref_env_load(plist[1], int'(FLAT)) < 0) $fatal(1, "environment build failed");
+      env_load(plist[1]);
       do_run(plist[1], 7, iters, 1'b1);                        // ENV_ERR, then a normal run must still match
       do_run(plist[1], 7, iters, 1'b0);
       if (failed_iter == 0 || env_errs == 0) begin $display("ERROR FAIL_ITER or ENV_ERR not exercised"); errs++; end

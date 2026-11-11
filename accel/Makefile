@@ -21,7 +21,7 @@ FXLIB_SRC := $(FXDIR)/fx_ref.c $(FXDIR)/fx_env.c $(FXDIR)/fx_ref_stub.c $(SRCDIR
 DPI     := -LDFLAGS $(FXLIB) -LDFLAGS -lm
 TBFLAGS := --binary --timing --assert -Wno-fatal -Irtl/common
 
-.PHONY: test-cse test-cse-unit test-cse-mutant test-ple-drv lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
+.PHONY: test-ple-cse test-cse test-cse-unit test-cse-mutant test-ple-drv lint test-checker test-env-mem test-ple-unit test-ple-core test-ple-top test-ple-mutants clean
 
 # every RTL file must lint clean
 lint:
@@ -299,6 +299,19 @@ test-ple-core: $(BUILD)/tb_core_h/Vtb_core $(BUILD)/tb_core_flat/Vtb_core $(BUIL
 	$(BUILD)/tb_core_ak/Vtb_core +probs=6 +seeds=1 > $(BUILD)/tb_core_ak/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_ak/run.log; exit $$rc
 	$(BUILD)/tb_core_big/Vtb_core +probs=6 +seeds=1 > $(BUILD)/tb_core_big/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_big/run.log; exit $$rc
 	$(BUILD)/tb_core_small/Vtb_core > $(BUILD)/tb_core_small/run.log; rc=$$?; grep -E 'TB_CORE|ERROR' $(BUILD)/tb_core_small/run.log; exit $$rc
+
+# PLE core + real CSE RTL (cse_top + cse_env_mem, environment loaded through the write port) vs golden runs.
+# NCU=<n> CSE units (default 2). No auto-kill variant: the RTL CSE has no auto-kill.
+NCU ?= 2
+RTLCSE_TB := tb/cse_rtl.sv tb/ple_cse_if_checker.sv tb/tb_core.sv
+$(BUILD)/tb_core_rtlcse$(NCU)/Vtb_core $(BUILD)/tb_core_rtlcse$(NCU)_flat/Vtb_core: $(PKG) $(CORE_RTL) $(CSE_RTL) $(RTLCSE_TB) $(FXLIB)
+	@mkdir -p $(dir $@)
+	$(VERI) $(TBFLAGS) -Mdir $(dir $@) +define+RTL_CSE +define+CSE_N_CU=$(NCU) $(if $(findstring flat,$@),-GFLAT=1) \
+	    --top-module tb_core $(PKG) $(CORE_RTL) $(CSE_RTL) $(RTLCSE_TB) $(DPI) -o Vtb_core >/dev/null
+
+test-ple-cse: $(BUILD)/tb_core_rtlcse$(NCU)/Vtb_core $(BUILD)/tb_core_rtlcse$(NCU)_flat/Vtb_core
+	$(BUILD)/tb_core_rtlcse$(NCU)/Vtb_core $(ARGS) > $(BUILD)/tb_core_rtlcse$(NCU)/run.log; rc=$$?; grep -E 'TB_CORE|ERROR|if_checker' $(BUILD)/tb_core_rtlcse$(NCU)/run.log; exit $$rc
+	$(BUILD)/tb_core_rtlcse$(NCU)_flat/Vtb_core +probs=6 +seeds=1 $(ARGS) > $(BUILD)/tb_core_rtlcse$(NCU)_flat/run.log; rc=$$?; grep -E 'TB_CORE|ERROR|if_checker' $(BUILD)/tb_core_rtlcse$(NCU)_flat/run.log; exit $$rc
 
 TOP_TB := tb/cse_bfm.sv tb/ple_cse_if_checker.sv tb/tb_top.sv
 $(BUILD)/tb_top/Vtb_top: $(PKG) $(CORE_RTL) rtl/ple/ple_top.sv $(TOP_TB) $(FXLIB)

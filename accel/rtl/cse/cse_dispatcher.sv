@@ -38,15 +38,15 @@ module cse_dispatcher
        (hold_payload.birth_gen != kill_gen[hold_payload.query.tag]));
 
   always_comb begin : p_scan
-    int candidate;
+    logic [CU_W:0] candidate;                        // narrow index math: a 32-bit int crashes Vivado 2024.1 synth
     select_found = 1'b0;
     select_idx = '0;
     for (int offset = 0; offset < N_CU; ++offset) begin
-      candidate = int'(rr_ptr) + offset;
-      if (candidate >= N_CU) candidate = candidate - N_CU;
-      if (!select_found && cu_ready[candidate]) begin
+      candidate = {1'b0, rr_ptr} + (CU_W + 1)'(offset);
+      if (candidate >= (CU_W + 1)'(N_CU)) candidate = candidate - (CU_W + 1)'(N_CU);
+      if (!select_found && cu_ready[candidate[CU_W-1:0]]) begin
         select_found = 1'b1;
-        select_idx = CU_W'(candidate);
+        select_idx = candidate[CU_W-1:0];
       end
     end
   end
