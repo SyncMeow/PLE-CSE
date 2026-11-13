@@ -1,4 +1,5 @@
-// Environment memory, format v0, double buffered (INTERFACES.md I3).
+// Environment memory, format v0, N_BUF buffers (INTERFACES.md I3). The ports always carry two buffers;
+// with N_BUF = 1 buffer 1 does not exist: its header reads invalid, its data reads 0, writes to it are dropped.
 // Reference model: plain arrays read by NRD port sets; the CSE owner may replace the inside with banked
 // or replicated BRAM as long as the ports and ENV_RD_LAT stay the same.
 // Simulation load: +env0=<trace prefix> / +env1=<prefix> reads <prefix>_{hdr,dir,cell,ptx,pty,ptz}.hex.
@@ -6,6 +7,7 @@ module cse_env_mem
   import ple_cse_pkg::*;
 #(
     parameter int NRD        = 4,                             // read-port sets (one per CU)
+    parameter int N_BUF      = 1,                             // buffers: 1 (single) or 2 (double buffered)
     parameter int N_CELL     = ple_cse_pkg::CELL_DEPTH,       // CELL entries per buffer (format allows 4096)
     parameter int N_PT       = ple_cse_pkg::PT_DEPTH          // points per buffer (format allows 65536)
 ) (
@@ -37,15 +39,18 @@ module cse_env_mem
   localparam int PA_W = $clog2(N_PT);
   localparam int HA_W = $clog2(HDR_WORDS);
 
+  if (N_BUF < 1 || N_BUF > 2) begin : g_bad_buf
+    $error("cse_env_mem: N_BUF must be 1 or 2");
+  end
   if (N_CELL < 1 || N_CELL > (1 << SLOT_W) || N_PT < 1 || N_PT > (1 << PT_AW)) begin : g_bad_depth
     $error("cse_env_mem: N_CELL must be 1..4096 and N_PT 1..65536 (format v0 address widths)");
   end
 
-  logic [1:0][NRD-1:0][15:0]          dir_q;
-  logic [1:0][NRD-1:0][127:0]         cell_q;
-  logic [1:0][NRD-1:0][PT_DATA_W-1:0] pt_q;
+  logic [N_BUF-1:0][NRD-1:0][15:0]          dir_q;
+  logic [N_BUF-1:0][NRD-1:0][127:0]         cell_q;
+  logic [N_BUF-1:0][NRD-1:0][PT_DATA_W-1:0] pt_q;
 
-  for (genvar b = 0; b < 2; ++b) begin : g_buf
+  for (genvar b = 0; b < N_BUF; ++b) begin : g_buf
     logic [31:0]          hdr  [HDR_WORDS];
     logic [15:0]          dirm [ENV_NCELL];
     logic [127:0]         cellm[N_CELL];
@@ -103,13 +108,29 @@ module cse_env_mem
 `endif
   end
 
+  // a buffer that does not exist: header invalid
+  for (genvar b = N_BUF; b < 2; ++b) begin : g_nobuf
+    assign hdr_valid[b]   = 1'b0;
+    assign hdr_err[b]     = 1'b0;
+    assign hdr_n_pts[b]   = '0;
+    assign hdr_n_cells[b] = '0;
+    assign hdr_glo[b]     = '0;
+    assign hdr_ghi[b]     = '0;
+  end
+
   // output select: rd_buf registered so the mux matches the data's cycle
   logic [NRD-1:0] buf_q;
   always_ff @(posedge clk) buf_q <= rd_buf;
   for (genvar p = 0; p < NRD; ++p) begin : g_out
-    assign dir_data[p]  = dir_q[buf_q[p]][p];
-    assign cell_data[p] = cell_q[buf_q[p]][p];
-    assign pt_data[p]   = pt_q[buf_q[p]][p];
+    if (N_BUF == 2) begin : g_two
+      assign dir_data[p]  = dir_q[buf_q[p]][p];
+      assign cell_data[p] = cell_q[buf_q[p]][p];
+      assign pt_data[p]   = pt_q[buf_q[p]][p];
+    end else begin : g_one                               // buffer 1 does not exist: reads 0
+      assign dir_data[p]  = buf_q[p] ? '0 : dir_q[0][p];
+      assign cell_data[p] = buf_q[p] ? '0 : cell_q[0][p];
+      assign pt_data[p]   = buf_q[p] ? '0 : pt_q[0][p];
+    end
   end
 
 endmodule

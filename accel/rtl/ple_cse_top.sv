@@ -3,7 +3,8 @@
 module ple_cse_top
   import ple_cse_pkg::*;
 #(
-    parameter int unsigned N_CU = 2
+    parameter int unsigned N_CU  = 2,
+    parameter int          N_BUF = 1       // environment buffers (1 or 2); MODE.env_buf must be 0 when 1
 ) (
     input  logic              clk,
     input  logic              rst_n,
@@ -67,7 +68,7 @@ module ple_cse_top
       .rd_buf, .dir_addr, .dir_data, .cell_addr, .cell_data, .pt_addr, .pt_data,
       .hdr_valid, .hdr_err, .hdr_n_pts, .hdr_glo, .hdr_ghi);
 
-  cse_env_mem #(.NRD(N_CU)) u_env (
+  cse_env_mem #(.NRD(N_CU), .N_BUF(N_BUF)) u_env (
       .clk, .rd_buf, .dir_addr, .dir_data, .cell_addr, .cell_data, .pt_addr, .pt_data,
       .hdr_valid, .hdr_err, .hdr_n_pts, .hdr_n_cells, .hdr_glo, .hdr_ghi,
       .wr_en(env_wr_en), .wr_buf(env_wr_buf), .wr_region(env_wr_region), .wr_addr(env_wr_addr), .wr_data(env_wr_data));

@@ -62,13 +62,22 @@ $(BUILD)/tb_env_mem/Vtb_env_mem: $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv
 	$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem \
 	    --top-module tb_env_mem $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv -o Vtb_env_mem >/dev/null
 
-test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem
+# single buffer (the default of cse_env_mem): buffer 0 as above, buffer 1 must read invalid and 0
+$(BUILD)/tb_env_mem_1buf/Vtb_env_mem: $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv
+	@mkdir -p $(BUILD)/tb_env_mem_1buf
+	$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem_1buf -GN_BUF=1 \
+	    --top-module tb_env_mem $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv -o Vtb_env_mem >/dev/null
+
+test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem $(BUILD)/tb_env_mem_1buf/Vtb_env_mem
 	$< +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem | grep -E 'TB|cse_env_mem'
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "buf0 $$f OK" || echo "buf0 $$f DIFF"; \
 	  cmp -s $(BUILD)/tb_env_mem/buf1_$$f.hex $(TRACE)/s0_p2_$$f.hex && echo "buf1 $$f OK" || echo "buf1 $$f DIFF"; done
+	$(BUILD)/tb_env_mem_1buf/Vtb_env_mem +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem_1buf | grep -E 'TB|cse_env_mem'
+	@for f in dir cell ptx pty ptz; do \
+	  cmp -s $(BUILD)/tb_env_mem_1buf/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "1buf buf0 $$f OK" || echo "1buf buf0 $$f DIFF"; done
 	@mkdir -p $(BUILD)/tb_env_mem_small
-	@$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem_small -GN_CELL=512 -GN_PT=8192 \
+	@$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem_small -GN_CELL=512 -GN_PT=8192 -GN_BUF=2 \
 	    --top-module tb_env_mem $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv -o V >/dev/null
 	@$(BUILD)/tb_env_mem_small/V +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem_small > /dev/null
 	@for f in dir cell ptx pty ptz; do \
