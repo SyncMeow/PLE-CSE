@@ -35,7 +35,7 @@ MUTANTS = {
                'one lane truncates products toward zero instead of floor'),
     'fku_m3': ('ple_fku.sv', "sin_v[sj2] <= W'(sb2) + W'(sp2 >>> TS);", "sin_v[sj2] <= W'(sb2) + W'(sp2 / (1 <<< TS));",
                'sin interpolation truncates toward zero'),
-    'fku_m6': ('ple_fku.sv', " + 18'sd19497;", " + 18'sd19498;", 'w_min offset off by one (all outputs)', 'all'),
+    'fku_m6': ('ple_fku.sv', " + 18'sd32768;", " + 18'sd32769;", 'w_min offset off by one (all outputs)', 'all'),
     'fku_m7': ('ple_fku.sv', "6'd11: begin a0_x[0] <= -r[23];", "6'd11: begin a0_x[0] <= r[23];",
                'negation alias lost inside one V*V product'),
     'fku_m8': ('ple_fku.sv', "sin_v[sj2] <= W'(sb2) + W'(sp2 >>> TS);", "sin_v[sj2] <= W'(cb2) + W'(cp2 >>> TS);",

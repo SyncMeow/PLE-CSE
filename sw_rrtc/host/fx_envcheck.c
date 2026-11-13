@@ -19,7 +19,6 @@ int main(int argc, char **argv)
     int first = 0, last = n_problems - 1;
     long nq = argc > 2 ? atol(argv[2]) : 20000;
     if (argc > 1 && sscanf(argv[1], "%d:%d", &first, &last) == 1) last = first;
-    const int32_t w_min = -19497;
     static fx_env_t env;
     void *mem = malloc(1u << 28);
     uint64_t total = 0, mism = 0, hits = 0, edge_q = 0, edge_hit = 0, cells_max = 0, problems_n = 0;
@@ -29,7 +28,7 @@ int main(int argc, char **argv)
         arena_init(mem, 1u << 28);
         points_t raw;
         pc_sample(&problems[i], &raw);
-        fx_env_build(raw.x, raw.y, raw.z, raw.n, w_min, &env);
+        fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &env);
         if (!env.valid) { printf("ENVERR,%d\n", i); continue; }
         problems_n++;
         if (env.n_pts < pts_min) pts_min = env.n_pts;
@@ -50,7 +49,7 @@ int main(int argc, char **argv)
                 r = (uint32_t)(qd[3] * k);
                 if (r > 8192) r = 8192, c[0] = p[0] + 8192, c[1] = p[1], c[2] = p[2];
             } else {
-                for (int a = 0; a < 3; ++a) c[a] = rnd(-6000, 45000);   // includes outside the workspace
+                for (int a = 0; a < 3; ++a) c[a] = rnd(-6000, 71000);   // includes outside the workspace
                 r = (uint32_t)rnd(0, 8192);
             }
             int a = fx_cse_ref(&env, c[0], c[1], c[2], r), b = fx_cse_def(&env, c[0], c[1], c[2], r);

@@ -16,7 +16,7 @@ void fx_pose_init(double delta_fk_m, int flat, fx_env_fn env)
 {
     g_flat = flat;
     g_env = env;
-    fx_w_min = (int32_t)floor(-1.19 * 16384.0);
+    fx_w_min = -32768;                      // -2 m: the preprocessing origin (ENV_ORIGIN)
     // centre error: floor to LSB (< sqrt3 LSB) + delta_FK; points are stored exactly at LSB (< sqrt3 LSB)
     const double e_c = sqrt(3.0) + delta_fk_m / FX_WS_LSB_M, e_p = sqrt(3.0);
     for (int s = 0; s < FX_N_SPHERES; ++s)

@@ -75,7 +75,7 @@ int main(int argc, char **argv)
         points_t raw;
         arena_init(mem, 1u << 27);
         pc_sample(&problems[i], &raw);
-        fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &env);
+        fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &env);
         if (!env.valid) continue;
         int16_t qs[FX_DIM], qg[FX_DIM];
         for (int j = 0; j < FX_DIM; ++j) { qs[j] = fx_q_from_float(problems[i].start[j]); qg[j] = fx_q_from_float(problems[i].goal[j]); }

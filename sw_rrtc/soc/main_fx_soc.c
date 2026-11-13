@@ -90,7 +90,7 @@ int main(void)
         arena_init((void *)base, ARENA_END - base);
         points_t raw;
         pc_sample(&problems[i], &raw);
-        fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &g_env);
+        fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &g_env);
 #endif
         if (!ENV->valid) { printf("FXENVERR,%d\n", i); continue; }
         printf("FXENV,%d,%lu,%lu\n", i, (unsigned long)ENV->n_pts, (unsigned long)ENV->n_cells);

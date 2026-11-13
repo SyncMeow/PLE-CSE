@@ -15,7 +15,7 @@ typedef struct {
 } fx_pose_stats_t;
 
 extern fx_pose_stats_t fx_ps;
-extern int32_t fx_w_min;                   // w_min in workspace LSB (floor(-1.19 m * 2^14))
+extern int32_t fx_w_min;                   // w_min in workspace LSB (-2 m = -32768)
 extern uint32_t fx_rq[FX_N_SPHERES];       // ceil((r + r_point + eps) / LSB)
 extern int fx_cur_sphere, fx_cur_fine;      // sphere being queried (trace tags)
 

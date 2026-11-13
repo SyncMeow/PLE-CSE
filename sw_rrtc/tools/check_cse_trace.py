@@ -7,7 +7,7 @@ Usage: check_cse_trace.py <trace_dir> <tag> <queries.txt>     e.g. cse_trace s0_
 """
 import sys
 
-G, QSHIFT = 20, 11
+G, QSHIFT = 32, 11
 
 
 def hexfile(path, width=None):

@@ -19,7 +19,7 @@ import sys
 
 N_SPH = 70
 WS_FRAC = 14
-W_MIN = math.floor(-1.19 * 16384.0)  # as fx_pose.c fx_pose_init (-19497)
+W_MIN = -32768  # as fx_pose.c fx_pose_init (-2 m, the preprocessing origin)
 LAT = 3                            # issue -> result usable by an issue LAT cycles later (argv[5] overrides: mutant only)
 SC_LAT = 3                         # sin/cos of joint j usable from cycle j + SC_LAT (argv[6] overrides: mutant only)
 

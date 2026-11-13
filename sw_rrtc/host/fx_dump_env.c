@@ -27,7 +27,7 @@ int main(int argc, char **argv)
     arena_init(mem, 1u << 27);
     pc_sample(&problems[i], &raw);
     fx_pose_init(FX_DELTA_FK_MM * 1e-3, 0, 0);
-    fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &e);
+    fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &e);
     if (!e.valid) fatal("environment invalid");
     FILE *f = fopen(argv[2], "wb");
     if (!f || fwrite(&e, sizeof e, 1, f) != 1) fatal("write");

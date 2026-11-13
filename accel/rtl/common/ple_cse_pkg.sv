@@ -47,16 +47,16 @@ package ple_cse_pkg;
 
   // ---------------------------------------------------------------- environment format v0 (section 5.1)
   localparam int PT_W        = 16;                // point coordinate, unsigned, LSB = 2^-14 m
-  localparam int ENV_G       = 20;                // query cells per axis (12.5 cm)
+  localparam int ENV_G       = 32;                // query cells per axis (12.5 cm)
   localparam int ENV_QSHIFT  = 11;                // query cell = q >> 11
   localparam int ENV_FSHIFT  = 9;                 // fine cell  = q >> 9 (3.125 cm)
   localparam int ENV_NCELL   = ENV_G * ENV_G * ENV_G;
-  localparam int DIR_AW      = 13;                // DIR index (z*G + y)*G + x < 8000
+  localparam int DIR_AW      = 15;                // DIR index (z*G + y)*G + x < 32768
   localparam int SLOT_W      = 12;                // CELL index, up to 4096 non-empty cells
   localparam int PT_AW       = 16;                // PTS index, up to 65535 points
   localparam int COUNT_W     = 10;                // points per query cell (<= 64 for Panda)
   localparam int AOFF_W      = 11;                // AABB offset from the cell origin
-  localparam logic [31:0] W_MIN_LSB = -32'sd19497;  // floor(-1.19 m * 2^14)
+  localparam logic [31:0] W_MIN_LSB = -32'sd32768;  // -2 m: the preprocessing origin
 
   // environment memory ports (INTERFACES.md I3): one read-port set per CU, sync read
   localparam int ENV_RD_LAT  = 1;                 // address at edge t, data valid after edge t+1

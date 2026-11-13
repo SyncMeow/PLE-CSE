@@ -2,7 +2,13 @@
 #pragma once
 #include <stdint.h>
 
-#define ENV_G          20                  // query cells per axis (12.5 cm)
+#define ENV_G          32                  // query cells per axis (12.5 cm), origin -2 m
+#define ENV_ORIGIN     32768               // q = world Q14 + ENV_ORIGIN (same as the preprocessing)
+#define ENV_CULL_R     19497               // radial cull: ceil(1.19 m * 2^14)
+#define ENV_HASH_CAP   16384               // preprocessing hash capacity C: at most 3C/4 points
+#define ENV_ST_OK      0                   // build status codes of the preprocessing
+#define ENV_ST_CAP     4
+#define ENV_ST_INVALID 5
 #define ENV_QSHIFT     11                  // query cell = q >> 11
 #define ENV_FSHIFT     9                   // fine cell  = q >> 9 (3.125 cm)
 #define ENV_S          4                   // in-cell bits used for the centre distance
@@ -18,7 +24,7 @@ typedef struct {
 
 typedef struct {
     // HDR
-    int valid, err;
+    int valid, err, status;                // status: ENV_ST_*
     uint32_t n_pts, n_cells;
     uint16_t glo[3], ghi[3];               // global AABB (tight)
     // DIR: {occ[15], slot[11:0]}
@@ -35,8 +41,9 @@ typedef struct {
 
 extern fx_cse_stats_t fx_cs;
 
-// Raw float points (metres, robot base frame) -> filtered, tabled environment; w_min in LSB
-void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, int32_t w_min, fx_env_t *e);
+// Raw float points (metres, robot base frame) -> filtered, tabled environment (same result as the
+// preprocessing build engine); hash_cap = its hash capacity C (ENV_HASH_CAP on the board)
+void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, uint32_t hash_cap, fx_env_t *e);
 // CSE reference, structured like the hardware (global cull, range, dir, local AABB, points); 1 = hit
 int fx_cse_ref(const fx_env_t *e, int32_t cx, int32_t cy, int32_t cz, uint32_t rq);
 // Definition: exists p with |c - p|^2 <= rq^2 (brute force over all points)

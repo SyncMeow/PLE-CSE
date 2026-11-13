@@ -91,7 +91,7 @@ int main(int argc, char **argv)
         if (step == 3) {
             points_t raw;
             pc_sample(&problems[i], &raw);
-            fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &g_env);
+            fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &g_env);
             if (!g_env.valid) { printf("FXENVERR,%u,%u\n", problems[i].scene, problems[i].index); continue; }
             if (trace_dir) {
                 char tag[32];

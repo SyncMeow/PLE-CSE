@@ -27,25 +27,28 @@ static int cmp_kp(const void *a, const void *b)
     return x < y ? -1 : x > y;
 }
 
-void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, int32_t w_min, fx_env_t *e)
+void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, uint32_t hash_cap, fx_env_t *e)
 {
     memset(e, 0, sizeof(*e));
-    const int32_t qmax = -2 * w_min;        // workspace [w_min, -w_min)
     int32_t *best = malloc(sizeof(int32_t) * FINE_G * FINE_G * FINE_G);
     uint16_t *bd = malloc(sizeof(uint16_t) * FINE_G * FINE_G * FINE_G);
     uint16_t (*kept)[3] = malloc(sizeof(uint16_t[3]) * (n ? n : 1));
     uint32_t nk = 0;
     for (uint32_t i = 0; i < FINE_G * FINE_G * FINE_G; ++i) best[i] = -1;
     // filter: one point per fine cell, smallest centre distance, ties keep the first
-    for (uint32_t i = 0; i < n; ++i) {
+    for (uint32_t i = 0; i < n && !e->status; ++i) {
         const float p[3] = {x[i], y[i], z[i]};
         int32_t q[3];
+        int64_t norm = 0;
         int out = 0;
+        if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2])) { e->status = ENV_ST_INVALID; break; }
         for (int k = 0; k < 3; ++k) {
-            q[k] = (int32_t)floor((double)p[k] * 16384.0) - w_min;     // exact: power-of-two scale
-            if (q[k] < 0 || q[k] >= qmax) out = 1;
+            const double t = trunc((double)p[k] * 16384.0);            // toward zero; exact: power-of-two scale
+            if (t < -32768.0 || t > 32767.0) { out = 1; continue; }
+            norm += (int64_t)t * (int64_t)t;
+            q[k] = (int32_t)t + ENV_ORIGIN;
         }
-        if (out) continue;
+        if (out || norm >= (int64_t)ENV_CULL_R * ENV_CULL_R) continue;   // outside the radial workspace
         uint32_t f = ((uint32_t)(q[2] >> ENV_FSHIFT) * FINE_G + (uint32_t)(q[1] >> ENV_FSHIFT)) * FINE_G + (uint32_t)(q[0] >> ENV_FSHIFT);
         uint32_t d = 0;
         for (int k = 0; k < 3; ++k) {
@@ -53,6 +56,7 @@ void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, in
             d += (uint32_t)(ev * ev);
         }
         if (best[f] < 0) {
+            if ((uint64_t)nk * 4 >= (uint64_t)hash_cap * 3) { e->status = ENV_ST_CAP; break; }   // hash table 3/4 full
             best[f] = (int32_t)nk;
             bd[f] = (uint16_t)d;
             for (int k = 0; k < 3; ++k) kept[nk][k] = (uint16_t)q[k];
@@ -64,7 +68,8 @@ void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, in
     }
     free(best);
     free(bd);
-    if (nk > ENV_MAX_PTS) { e->err = 1; free(kept); return; }
+    if (!e->status && nk > ENV_MAX_PTS) e->status = ENV_ST_CAP;
+    if (e->status) { e->err = 1; free(kept); return; }
     // order: query-cell Morton, then fine-cell Morton (one point per fine cell, so keys are unique)
     kp_t *kp = malloc(sizeof(kp_t) * (nk ? nk : 1));
     for (uint32_t i = 0; i < nk; ++i) {
@@ -82,7 +87,7 @@ void fx_env_build(const float *x, const float *y, const float *z, uint32_t n, in
         const uint16_t *q = kp[i].q;
         e->px[i] = q[0]; e->py[i] = q[1]; e->pz[i] = q[2];
         if ((kp[i].key >> 6) != prev) {
-            if (e->n_cells >= ENV_MAX_SLOTS) { e->err = 1; free(kp); return; }
+            if (e->n_cells >= ENV_MAX_SLOTS) { e->err = 1; e->status = ENV_ST_CAP; free(kp); return; }
             prev = kp[i].key >> 6;
             env_cell_t *c = &e->cell[e->n_cells];
             c->base = (uint16_t)i;

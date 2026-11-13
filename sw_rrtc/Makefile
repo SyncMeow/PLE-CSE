@@ -110,6 +110,14 @@ $(HOST_DIR)/fx_envcheck: host/fx_envcheck.c fx/fx_env.c $(FX_CHK_SRCS) $(wildcar
 	@$(MKDIR) $(HOST_DIR)
 	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_envcheck.c fx/fx_env.c $(FX_CHK_SRCS) -lm
 
+# fx_env_build / fx_cse_ref against the preprocessing golden vectors (vcc-based-accelerator hw/vectors)
+VCC_VECTORS ?= $(abspath ../../vcc-based-accelerator/hw/vectors)
+$(HOST_DIR)/fx_envxcheck: host/fx_envxcheck.c fx/fx_env.c $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_envxcheck.c fx/fx_env.c -lm
+fx-xcheck: $(HOST_DIR)/fx_envxcheck
+	$(HOST_DIR)/fx_envxcheck $(VCC_VECTORS)
+
 # regenerate the fixed-point FK (F = fraction bits, TS = sin/cos table step 2^TS joint LSBs)
 FX_F  ?= 18
 FX_TS ?= 6
@@ -122,7 +130,7 @@ fx-check: $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
 	$(HOST_DIR)/fx_envcheck 0:60 20000
 
 fx: $(HOST_DIR)/rrtc_fx $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
-.PHONY: fx fx-regen fx-check
+.PHONY: fx fx-regen fx-check fx-xcheck
 
 $(HOST_DIR)/libvcc.so: host/api.c $(CORE) $(wildcard src/*.h)
 	@$(MKDIR) $(HOST_DIR)

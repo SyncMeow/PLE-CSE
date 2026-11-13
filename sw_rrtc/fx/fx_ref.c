@@ -104,7 +104,7 @@ int fx_ref_env_load(int i, int flat)
     arena_init(mem, 1u << 27);
     pc_sample(&problems[i], &raw);
     fx_pose_init(FX_DELTA_FK_MM * 1e-3, flat, ref_cse);
-    fx_env_build(raw.x, raw.y, raw.z, raw.n, fx_w_min, &ref_env);
+    fx_env_build(raw.x, raw.y, raw.z, raw.n, ENV_HASH_CAP, &ref_env);
     return ref_env.valid ? (int)ref_env.n_pts : -1;
 }
 // 32-bit word w of entry addr of the loaded environment in the cse_env_mem write-port layout (fx_env_dump):
