@@ -87,8 +87,8 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
           else begin
             st = fx_ref_cse(e.cx, e.cy, e.cz, e.rq) ? ST_HIT : ST_MISS;
             if (AK && e.koh && st == ST_HIT) foreach (cq[i]) if (cq[i].tag == e.tag) cq[i].killed = 1;
-            // ERROR injection on a MISS (pose results unchanged): QD must raise env_err
-            if (st == ST_MISS && ($urandom % 4000) == 0) begin st = ST_ERROR; n_err++; end
+            // ERROR injection on a MISS (pose results unchanged): QD must raise env_err for the current tag only
+            if (st == ST_MISS && ($urandom % (e.tag[0] == u_qd.cur_tag ? 4000 : 40)) == 0) begin st = ST_ERROR; n_err++; end
           end
           // auto-kill: half the HITs are answered after the KILLED answers they caused
           if (AK && e.koh && st == ST_HIT && e.forced < 0 && ($urandom % 2)) begin
@@ -102,12 +102,15 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
   end
 
   // ---------------------------------------------------------------- env_err and K checks
-  int err_miss = 0, k_errs = 0, n_kills_seen = 0;
-  bit chk_err = 1'b0, dead_q = 1'b0;
+  int err_miss = 0, k_errs = 0, n_kills_seen = 0, n_stale_err = 0;
+  bit exp_err = 1'b0, dead_q = 1'b0;
   logic [TAG_W-1:0] k_exp[$];
   always @(posedge clk) if (rst_n) begin
-    if (chk_err && !env_err) err_miss++;            // env_err must follow an ERROR answer
-    chk_err <= r_valid && r_ready && r_status == ST_ERROR && !edge_start;
+    if (env_err !== exp_err) err_miss++;            // env_err: set by an ERROR of the current tag, cleared by edge_start
+    if (r_valid && r_ready && r_status == ST_ERROR) begin
+      if (r_tag[0] == u_qd.cur_tag) exp_err <= 1'b1; else n_stale_err++;
+    end
+    if (edge_start) exp_err <= 1'b0;
     dead_q <= u_qd.dead;
     if (u_qd.dead && !dead_q) begin k_exp.push_back(TAG_W'(u_qd.cur_tag)); n_kills_seen++; end
     if (k_valid && k_ready) begin
@@ -217,14 +220,15 @@ module tb_qd #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
     repeat (2) @(negedge clk);
     if (u_chk.errors != 0) begin $display("ERROR interface checker reported %0d errors", u_chk.errors); errs++; end
     if (after_kill != 0) begin $display("ERROR %0d results after an external kill", after_kill); errs++; end
-    if (err_miss != 0) begin $display("ERROR %0d ERROR answers without env_err", err_miss); errs++; end
+    if (err_miss != 0) begin $display("ERROR env_err differs from the model in %0d cycles", err_miss); errs++; end
+    if (n_stale_err == 0) begin $display("ERROR no ERROR answer of an old tag was exercised"); errs++; end
     if (k_errs != 0 || k_exp.size() != 0) begin
       $display("ERROR K mismatch: %0d wrong or extra, %0d kills never sent", k_errs, k_exp.size()); errs++;
     end
     if (AK && n_late_hit == 0) begin $display("ERROR no delayed auto-kill HIT was exercised"); errs++; end
     if (n_err == 0 || n_kstall == 0) begin $display("ERROR ERROR injection or K stalls not exercised"); errs++; end
-    $display("TB_QD flat=%0d auto_kill=%0d envs=%0d edges=%0d (free %0d, env hit %0d, killed %0d) poses=%0d queries=%0d killed_answers=%0d hits_reported=%0d free_reported=%0d late_hits=%0d errors_injected=%0d k_stalls=%0d kills=%0d errors=%0d",
-             FLAT, AK, envs, edges, free_edges, hit_edges, ext_kills, poses_fed, nq, nkilled, pd_hits, pd_oks, n_late_hit, n_err, n_kstall, n_kills_seen, errs);
+    $display("TB_QD flat=%0d auto_kill=%0d envs=%0d edges=%0d (free %0d, env hit %0d, killed %0d) poses=%0d queries=%0d killed_answers=%0d hits_reported=%0d free_reported=%0d late_hits=%0d errors_injected=%0d stale_errors=%0d k_stalls=%0d kills=%0d errors=%0d",
+             FLAT, AK, envs, edges, free_edges, hit_edges, ext_kills, poses_fed, nq, nkilled, pd_hits, pd_oks, n_late_hit, n_err, n_stale_err, n_kstall, n_kills_seen, errs);
     if (errs != 0) $fatal(1, "TB_QD FAIL");
     $finish;
   end

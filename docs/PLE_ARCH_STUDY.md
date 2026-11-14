@@ -337,7 +337,10 @@ FKU 延遲減少 32%（53 → 36），整體最多只減少 4.1%。
   - cycle 6071238：tag 0 的 ERROR 回來。`ple_qd.sv:201` 不看 tag，直接設 `env_err`，run 38 回報 ENV_ERR。
 - **為什麼和時序有關**：姿態後端越快，出錯時在途的查詢越多（這裡 28 個），排空要的時間超過下一個 run 開始第一條邊的時間（約 40 個 cycle）。
 - **範圍**：這是 PLE 既有的設計缺口，不是加速造成的。testbench 在 ENV_ERR 後立刻開始下一個 run；軟體若先等 `STATUS.cse_idle` 再開始就不會發生，但 `docs/INTERFACES.md` 沒有要求這一點。
-- **修法選項（未實作，R10）**：(A) `ple_qd` 只接受目前 tag 的 ERROR（一行；`edge_ready` 已保證目前 tag 沒有舊回應）；(B) 一個 run 的第一條邊等兩個 tag 都歸零；(C) 只在文件規定「ENV_ERR 後等 `cse_idle` 再 start」。
+- **已用選項 A 修正（2026-11-14）**：`ple_qd.sv:201` 只接受目前 tag 的 ERROR。證據：`tb_qd` 的新檢查在修改前失敗（`env_err differs from the model in 11692 cycles`），修改後三種設定 `errors=0`（舊 tag 的 ERROR 各 51、68、56 次）；回歸 10/10；mutant 75 個 killed（新增 `qd_m14` = 還原舊行為）；原本失敗的設定 39 個 run `errors=0`；rtl-reviewer 沒有 blocking。
+  - 行為變化：已結束的邊晚到的 ERROR 現在被丟掉。環境若真的壞了，下一條邊的查詢也會回 ERROR，`STATUS.cse_err` 也會記錄。
+  - 未做：系統層沒有固定的回歸測試（`cse_bfm` 只對一個查詢回 ERROR，做不出殘留的 ERROR）；沒有重跑 OOC 合成（多一個 1 bit 比較）。
+- 當時考慮的選項：(A) `ple_qd` 只接受目前 tag 的 ERROR（一行；`edge_ready` 已保證目前 tag 沒有舊回應）；(B) 一個 run 的第一條邊等兩個 tag 都歸零；(C) 只在文件規定「ENV_ERR 後等 `cse_idle` 再 start」。
 
 ---
 
@@ -361,7 +364,7 @@ FKU 延遲減少 32%（53 → 36），整體最多只減少 4.1%。
 |---|---|---|---|
 | R1 | SCU 的時間分布，以及 SCU 管線化或複製的成本 | `+scu_trace`；SCU 產生器的 lane 參數；golden 統計 | 完成（第 5.8 節） |
 | R9 | 實作 SCU 的列過濾：證明門檻、改產生器和 golden 的 pair 計數、量資源 | `gen_fx_scu_rtl.py`、`fx_dump_scu.c`、`tb_scu` | 未開始 |
-| R10 | ERROR 之後的下一個 run 誤報 ENV_ERR（N_CU = 8，FKU lane 16 加較快的 SCU） | 重現後看 `ple_qd` 的 tag 與 `env_err` | 根因已確認（第 5.8 節），修法待決定 |
+| R10 | ERROR 之後的下一個 run 誤報 ENV_ERR（N_CU = 8，FKU lane 16 加較快的 SCU） | 重現後看 `ple_qd` 的 tag 與 `env_err` | 完成：已用選項 A 修正（第 5.8 節） |
 | R2 | 每個姿態實際需要幾顆球（球按需求計算能省多少 FK） | 在 golden 統計外包球 HIT 的比例和自碰撞用到的球 | 未開始 |
 | R3 | 推測執行的命中率（connect 的下一段、extend 的成功率） | 在 golden 統計 | 未開始 |
 | R4 | 邊的平行度：多條邊同時在途能省多少 | 用 `tb_core` 的效能模型或 golden 的 trace | 未開始 |
@@ -385,5 +388,6 @@ FKU 延遲減少 32%（53 → 36），整體最多只減少 4.1%。
 | 2026-11-14 | SCU 的時間分布（`+scu_trace`）、golden 的外包球相交統計（699 題） | 第 5.8 節：63 個 cycle，兩組外包球 100% 相交 |
 | 2026-11-14 | SCU lane 4 / 8 / 16 / 32 單獨合成；FKU × SCU 的系統 cycle | 第 5.8 節：兩個一起改最多 −26.8% |
 | 2026-11-14 | 列過濾的 golden 統計與時序模擬 | 第 5.8 節：內層 entry 48.76 → 4.40，SCU 約 22 個 cycle（未實作） |
-| 2026-11-14 | N_CU = 8 且 FKU lane 16 時，ERROR 後的 run 誤報 ENV_ERR | 第 5.8 節，R10（未查明） |
+| 2026-11-14 | N_CU = 8 且 FKU lane 16 時，ERROR 後的 run 誤報 ENV_ERR | 第 5.8 節，R10 |
 | 2026-11-14 | 重現 R10 並加除錯輸出追蹤 ERROR 回應的 tag | 根因：`ple_qd` 收下舊 tag 的 ERROR；新 run 不等舊回應排空 |
+| 2026-11-14 | 修正 R10：`ple_qd` 只接受目前 tag 的 ERROR | 回歸 10/10、mutant 75 killed、原失敗設定通過 |

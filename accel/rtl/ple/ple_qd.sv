@@ -24,7 +24,7 @@ module ple_qd
     input  logic                      edge_start,        // begin an edge (only while edge_ready)
     input  logic                      edge_kill,         // edge invalid elsewhere: stop, kill its queries
     output logic                      idle,              // no pose in flight, no query held
-    output logic                      env_err,           // an ERROR response arrived (sticky per edge)
+    output logic                      env_err,           // an ERROR of the current tag arrived (sticky per edge)
     // poses (from FKU)
     input  logic                      p_valid,
     output logic                      p_ready,
@@ -198,7 +198,7 @@ module ple_qd
           else fine_hit = 1'b1;
         end
       end
-      if (r_valid && r_status == ST_ERROR) env_err <= 1'b1;   // any tag: an ERROR ends the run (ENV_ERR) anyway
+      if (r_valid && r_status == ST_ERROR && r_tag[0] == cur_tag) env_err <= 1'b1;   // an old tag's ERROR is stale
 
       // stage B: Q register
       if (a_adv) begin
