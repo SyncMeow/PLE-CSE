@@ -81,6 +81,12 @@ module tb_evu #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
 
   int problems_list[4] = '{1, 260, 410, 600};
 
+  int qd_wait = 0, qd_wait_max = 0;                      // longest wait of FKU centres for a QD slot
+  always @(posedge clk) begin
+    if (u_evu.c_qd) qd_wait <= qd_wait + 1; else qd_wait <= 0;
+    if (qd_wait > qd_wait_max) qd_wait_max <= qd_wait;
+  end
+
   initial begin
     shortint s[7];
     int v[7];
@@ -89,8 +95,9 @@ module tb_evu #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
     foreach (problems_list[p]) begin
       if (fx_ref_env_load(problems_list[p], int'(FLAT)) < 0) $fatal(1, "environment build failed");
       // second half: a fast CSE (QD can finish before SCU, the self check must still be waited for)
+      // problem 1: a slow CSE (QD stays full longer than one FKU run: the FKU must wait for QD to take the centres)
       u_cse.maxlat = (p >= 2) ? 2 : 40;
-      u_cse.rdy_pct = (p >= 2) ? 100 : 75;
+      u_cse.rdy_pct = (p >= 2) ? 100 : (p == 1) ? 6 : 75;
       for (int e = 0; e < 120; ++e) begin
         for (int j = 0; j < DIM; ++j) begin
           int a = int'(SMP_A[j]), m = int'(SMP_M[j]);
@@ -110,8 +117,9 @@ module tb_evu #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0);
     eot = 1'b1;
     repeat (2) @(negedge clk);
     if (u_chk.errors != 0) begin $display("ERROR interface checker reported %0d errors", u_chk.errors); errs++; end
-    $display("TB_EVU flat=%0d auto_kill=%0d edges=%0d (free %0d, collide %0d) fku_poses=%0d golden_poses_checked=%0d queries=%0d cycles_per_edge=%0d errors=%0d",
-             FLAT, AK, edges, free_edges, coll_edges, pose_sum, gold_pose_sum, u_cse.nq, int'(busy_cycles / 64'(edges)), errs);
+    if (qd_wait_max < 80) begin $display("ERROR QD back-pressure longer than an FKU run not exercised (max wait %0d)", qd_wait_max); errs++; end
+    $display("TB_EVU flat=%0d auto_kill=%0d edges=%0d (free %0d, collide %0d) fku_poses=%0d golden_poses_checked=%0d queries=%0d cycles_per_edge=%0d qd_wait_max=%0d errors=%0d",
+             FLAT, AK, edges, free_edges, coll_edges, pose_sum, gold_pose_sum, u_cse.nq, int'(busy_cycles / 64'(edges)), qd_wait_max, errs);
     if (errs != 0) $fatal(1, "TB_EVU FAIL");
     $finish;
   end

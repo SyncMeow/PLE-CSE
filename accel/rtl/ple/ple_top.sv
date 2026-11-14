@@ -11,7 +11,8 @@
 //   0x080 iterations  0x084 {size_goal, size_start}  0x088 path length
 //   0x0C0 cycles  0x0C4 edges  0x0C8 poses  0x0CC env queries  0x0D0 KILLED responses  0x0D4 self-collision pair tests
 //   (0x0D4 counts the pair tests the SCU hardware ran, including poses that already hit the environment and
-//   poses started before an edge was rejected; per pose it equals golden self_pairs only for collision-free poses)
+//   poses started before an edge was rejected; it includes the row filter tests: per collision-free pose it equals the
+//   test count of golden fx_self_ok_filt(), not fx_ps.self_pairs of fx_self_ok())
 //   0x0D8 DD rejects  0x0DC NN queries
 //   0x400-0x7FF  PATH: node n at 0x400 + 16 n, word k = {joint 2k+1, joint 2k}
 // Writes to configuration registers while busy are ignored (the core needs them stable). Results and counters

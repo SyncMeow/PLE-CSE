@@ -96,7 +96,7 @@ v2 有兩個目標：
 | P1 | `path_mem` 和 backtrace 陣列改成 RAM（同步讀） | 約 −7.4k FF、−1～2k LUT | 主機讀路徑多 1 cycle | 不變 |
 | P2 | 確保 `ple_tree` 在 BRAM（合成屬性 + OOC 檢查） | 約 −7.9k LUT（相對於現況） | 需要 19 個 RAMB36 | 不變 |
 | P3 | QD 的 pose slot 8 → 4（既有參數 `NSLOT`） | 約 −1～2k LUT | 需用 `perf_sweep.py` 量 cycle 增加量 | 不變 |
-| P4 | SCU lane 8 → 4（產生器參數） | 約 −1k LUT、−12 DSP | 自碰撞檢查變慢 | 不變 |
+| P4 | SCU lane 8 → 4（產生器參數） | 約 −1k LUT、−12 DSP | 自碰撞檢查變慢；2026-11-14 起產生器只支援 lane ≥ 8（`docs/PLE_ARCH_STUDY.md` 5.9） | 不變 |
 | P5 | N_CU = 1（既有參數） | −1.6k LUT、−5 DSP | cycle 約 ×1.7（`records/20261110`） | 不變 |
 | P6 | **備案**：`ple_div7` 7 個除法器共用；`ple_smp` 7 維逐維計算 | 約 −2.3k LUT | 要重寫模組；每次 steer / 取樣多數十 cycle | 不變 |
 

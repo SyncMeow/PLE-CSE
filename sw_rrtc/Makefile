@@ -125,9 +125,14 @@ fx-regen:
 	python3 -I tools/gen_fx_fk.py gen/panda_fk.c fx/fx_fk_gen.c $(FX_F) $(FX_TS)
 
 # golden-model self checks: delta_FK over 10^7 poses, cse_ref vs definition
-fx-check: $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
+$(HOST_DIR)/fx_scucheck: host/fx_scucheck.c fx/fx_pose.c fx/fx_fk_gen.c $(wildcard fx/*.h)
+	@$(MKDIR) $(HOST_DIR)
+	$(HOSTCC) $(COMMON) -Ifx -o $@ host/fx_scucheck.c fx/fx_pose.c fx/fx_fk_gen.c -lm
+
+fx-check: $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck $(HOST_DIR)/fx_scucheck
 	$(HOST_DIR)/fx_fkcheck 10000000
 	$(HOST_DIR)/fx_envcheck 0:60 20000
+	$(HOST_DIR)/fx_scucheck 1000000
 
 fx: $(HOST_DIR)/rrtc_fx $(HOST_DIR)/fx_fkcheck $(HOST_DIR)/fx_envcheck
 .PHONY: fx fx-regen fx-check fx-xcheck

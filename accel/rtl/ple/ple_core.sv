@@ -40,7 +40,7 @@ module ple_core
     output logic [31:0]               edges,
     output logic [31:0]               nn_queries,
     output logic [31:0]               poses,             // poses computed by FKU (perf only)
-    output logic [31:0]               self_pairs,        // self-collision pair tests by SCU (perf only)
+    output logic [31:0]               self_pairs,        // SCU pair tests incl. row filter tests (perf only)
     output logic [15:0]               size_start,
     output logic [15:0]               size_goal,
     output logic [7:0]                path_len,

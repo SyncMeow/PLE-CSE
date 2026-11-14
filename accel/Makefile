@@ -385,7 +385,7 @@ test-ple-mutants:
 	@for m in fku_m1 fku_m2 fku_m3 fku_m4 fku_m5 fku_m6 fku_m7 fku_m8 fku_m9 fku_m10; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_fku $(PLE_PKG) $(MUT)/$$m.sv tb/tb_fku.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 -E 'TB_FKU|overflows' $(MUT)/$$m.log)"; fi; done
-	@for m in scu_m1 scu_m2 scu_m3 scu_m4 scu_m5 scu_m6 scu_m7; do \
+	@for m in scu_m1 scu_m2 scu_m3 scu_m4 scu_m5 scu_m6 scu_m7 scu_m8 scu_m9 scu_m10 scu_m11; do \
 	  $(VERI) $(TBFLAGS) -Mdir $(MUT)/$$m --top-module tb_scu $(PLE_PKG) $(MUT)/$$m.sv tb/tb_scu.sv $(DPI) -o V >/dev/null || exit 1; \
 	  if $(MUT)/$$m/V > $(MUT)/$$m.log 2>&1; then echo "$$m SURVIVED"; exit 1; else echo "$$m killed: $$(grep -m1 TB_SCU $(MUT)/$$m.log)"; fi; done
 	@for m in qd_m1 qd_m2 qd_m3 qd_m4 qd_m5 qd_m6 qd_m7 qd_m8 qd_m9 qd_m10 qd_m11 qd_m13 qd_m14; do \

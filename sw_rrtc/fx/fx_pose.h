@@ -25,4 +25,9 @@ int fx_pose_ok(const int16_t *q);          // 1 = collision-free
 int fx_self_ok(const int32_t c[FX_N_SPHERES][3]);   // SCU: 1 = no self collision
 int fx_env_ok(const int32_t c[FX_N_SPHERES][3]);    // QD + CSE: 1 = no environment collision
 uint64_t fx_self_thr(int i);               // pair threshold, outer pairs first then inner (RTL ROM)
+#define FX_SELF_MAX_ROWS 16                // rows (distinct first spheres) of one outer pair
+int fx_self_rows(int o);                   // row filter of the SCU: rows of outer pair o
+int fx_self_row_a(int o, int r);           // sphere of row r
+uint64_t fx_self_fthr(int o, int r);       // threshold of row r against the outer sphere fx_self_outer[o][1]
+int fx_self_ok_filt(const int32_t c[FX_N_SPHERES][3], uint32_t *tests);   // fx_self_ok with the row filter
 void fx_fk_ws(const int16_t *q, int32_t c[FX_N_SPHERES][3]);

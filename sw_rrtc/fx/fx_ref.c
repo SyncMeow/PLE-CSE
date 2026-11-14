@@ -71,6 +71,29 @@ int fx_ref_self_ok(const int *c)
     return fx_self_ok(cc);
 }
 
+// SCU with the row filter: bit 0 = no self collision, bits 31:1 = pair tests (valid when collision-free)
+int fx_ref_self_ok_filt(const int *c)
+{
+    int32_t cc[FX_N_SPHERES][3];
+    short q0[FX_DIM] = {0};
+    int dummy[3 * FX_N_SPHERES];
+    uint32_t t;
+    fx_ref_fk_ws(q0, dummy);
+    for (int s = 0; s < FX_N_SPHERES; ++s)
+        for (int k = 0; k < 3; ++k) cc[s][k] = c[3 * s + k];
+    int ok = fx_self_ok_filt(cc, &t);
+    return (int)(t << 1) | ok;
+}
+
+// row of inner pair i: filter threshold of its first sphere against the outer sphere ob
+long long fx_ref_self_fthr(int i)
+{
+    int o = 0, r = 0;
+    while (i >= fx_self_off[o + 1]) ++o;
+    while (fx_self_row_a(o, r) != fx_self_inner[i][0]) ++r;
+    return (long long)fx_self_fthr(o, r);
+}
+
 long long fx_ref_self_pairs(void) { return (long long)fx_ps.self_pairs; }   // golden pair-test count so far
 
 // inner pair i (0..689): its spheres, its outer pair's spheres; returns the inner threshold
