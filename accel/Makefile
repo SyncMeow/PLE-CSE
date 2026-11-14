@@ -76,6 +76,8 @@ test-env-mem: $(BUILD)/tb_env_mem/Vtb_env_mem $(BUILD)/tb_env_mem_1buf/Vtb_env_m
 	$(BUILD)/tb_env_mem_1buf/Vtb_env_mem +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 +out=$(BUILD)/tb_env_mem_1buf | grep -E 'TB|cse_env_mem'
 	@for f in dir cell ptx pty ptz; do \
 	  cmp -s $(BUILD)/tb_env_mem_1buf/buf0_$$f.hex $(TRACE)/s0_p1_$$f.hex && echo "1buf buf0 $$f OK" || echo "1buf buf0 $$f DIFF"; done
+	@for w in 1 2 3 5 6 7; do $(BUILD)/tb_env_mem/Vtb_env_mem +bad_write=$$w +env0=$(TRACE)/s0_p1 +env1=$(TRACE)/s0_p2 2>&1 \
+	  | grep -q 'table written while valid' && echo "table write while valid ($$w): reported" || echo "table write while valid ($$w): DIFF"; done
 	@mkdir -p $(BUILD)/tb_env_mem_small
 	@$(VERI) --binary --timing -Wno-fatal -Irtl/common -Mdir $(BUILD)/tb_env_mem_small -GN_CELL=512 -GN_PT=8192 -GN_BUF=2 \
 	    --top-module tb_env_mem $(PKG) rtl/cse/cse_env_mem.sv tb/tb_env_mem.sv -o V >/dev/null

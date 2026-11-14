@@ -1,7 +1,8 @@
 // Environment memory, format v0, N_BUF buffers (INTERFACES.md I3). The ports always carry two buffers;
 // with N_BUF = 1 buffer 1 does not exist: its header reads invalid, its data reads 0, writes to it are dropped.
-// Reference model: plain arrays read by NRD port sets; the CSE owner may replace the inside with banked
-// or replicated BRAM as long as the ports and ENV_RD_LAT stay the same.
+// Each table is stored in ceil(NRD/2) true dual-port copies: two read-port sets share one copy.
+// A table write uses port A of every copy for that cycle, so read ports 0, 2, .. of that table return
+// undefined data then: clear the header's valid bit before the tables of a buffer are written.
 // Simulation load: +env0=<trace prefix> / +env1=<prefix> reads <prefix>_{hdr,dir,cell,ptx,pty,ptz}.hex.
 module cse_env_mem
   import ple_cse_pkg::*;
@@ -46,24 +47,14 @@ module cse_env_mem
     $error("cse_env_mem: N_CELL must be 1..4096 and N_PT 1..65536 (format v0 address widths)");
   end
 
+  localparam int NCP = (NRD + 1) / 2;                     // memory copies: one per two read ports
+
   logic [N_BUF-1:0][NRD-1:0][15:0]          dir_q;
   logic [N_BUF-1:0][NRD-1:0][127:0]         cell_q;
   logic [N_BUF-1:0][NRD-1:0][PT_DATA_W-1:0] pt_q;
 
   for (genvar b = 0; b < N_BUF; ++b) begin : g_buf
-    logic [31:0]          hdr  [HDR_WORDS];
-    logic [15:0]          dirm [ENV_NCELL];
-    logic [127:0]         cellm[N_CELL];
-    logic [PT_DATA_W-1:0] ptm  [N_PT];
-
-    // reads (both buffers are read; the port's rd_buf picks one, registered with the data)
-    for (genvar p = 0; p < NRD; ++p) begin : g_rd
-      always_ff @(posedge clk) begin
-        dir_q[b][p]  <= (int'(dir_addr[p]) < ENV_NCELL) ? dirm[dir_addr[p]] : '0;
-        cell_q[b][p] <= (int'(cell_addr[p]) < N_CELL) ? cellm[cell_addr[p][CA_W-1:0]] : '0;
-        pt_q[b][p]   <= (int'(pt_addr[p]) < N_PT) ? ptm[pt_addr[p][PA_W-1:0]] : '0;
-      end
-    end
+    logic [31:0] hdr[HDR_WORDS];
 
     assign hdr_valid[b]   = hdr[0][0];
     assign hdr_err[b]     = hdr[0][1];
@@ -74,34 +65,106 @@ module cse_env_mem
       assign hdr_ghi[b][k] = hdr[6 + k][PT_W-1:0];
     end
 
-    // build-engine writes
-    always_ff @(posedge clk) begin
-      if (wr_en && wr_buf == b[0]) begin
-        unique case (wr_region)
-          ENV_HDR:  if (int'(wr_addr) < HDR_WORDS) hdr[wr_addr[HA_W-1:0]] <= wr_data[31:0];
-          ENV_DIR:  if (int'(wr_addr) < ENV_NCELL) dirm[wr_addr[DIR_AW-1:0]] <= wr_data[15:0];
-          ENV_CELL: if (int'(wr_addr) < N_CELL) cellm[wr_addr[CA_W-1:0]] <= wr_data;
-          ENV_PTS:  if (int'(wr_addr) < N_PT) ptm[wr_addr[PA_W-1:0]] <= wr_data[PT_DATA_W-1:0];
-        endcase
+    // build-engine writes: the header is registers, a table write goes to every copy
+    logic wr_sel, we_dir, we_cell, we_pt;
+    assign wr_sel  = wr_en && wr_buf == b[0];
+    assign we_dir  = wr_sel && wr_region == ENV_DIR && int'(wr_addr) < ENV_NCELL;
+    assign we_cell = wr_sel && wr_region == ENV_CELL && int'(wr_addr) < N_CELL;
+    assign we_pt   = wr_sel && wr_region == ENV_PTS && int'(wr_addr) < N_PT;
+    always_ff @(posedge clk)
+      if (wr_sel && wr_region == ENV_HDR && int'(wr_addr) < HDR_WORDS) hdr[wr_addr[HA_W-1:0]] <= wr_data[31:0];
+
+`ifndef SYNTHESIS
+    // a table write takes port A of that table: the buffer must be invalid so that no CU reads it
+    always_ff @(posedge clk)
+      if (wr_sel && wr_region != ENV_HDR && hdr[0][0]) $error("cse_env_mem: buf%0d table written while valid", b);
+`endif
+
+    // each copy is a true dual-port RAM: port A = write or read port 2c, port B = read port 2c+1
+    for (genvar c = 0; c < NCP; ++c) begin : g_cp
+      localparam int PA = 2 * c;
+      localparam int PB = 2 * c + 1;
+      logic [15:0]          dirm [ENV_NCELL];
+      logic [127:0]         cellm[N_CELL];
+      logic [PT_DATA_W-1:0] ptm  [N_PT];
+
+      logic [DIR_AW-1:0]    dir_aa;
+      logic [CA_W-1:0]      cell_aa;
+      logic [PA_W-1:0]      pt_aa;
+      logic [15:0]          dir_ra;
+      logic [127:0]         cell_ra;
+      logic [PT_DATA_W-1:0] pt_ra;
+      logic                 dir_oka, cell_oka, pt_oka;        // read address was inside the depth
+      assign dir_aa  = we_dir ? wr_addr[DIR_AW-1:0] : dir_addr[PA];
+      assign cell_aa = we_cell ? wr_addr[CA_W-1:0] : cell_addr[PA][CA_W-1:0];
+      assign pt_aa   = we_pt ? wr_addr[PA_W-1:0] : pt_addr[PA][PA_W-1:0];
+      always_ff @(posedge clk) begin
+        if (we_dir) dirm[dir_aa] <= wr_data[15:0];
+        dir_ra <= dirm[dir_aa];
       end
+      always_ff @(posedge clk) begin
+        if (we_cell) cellm[cell_aa] <= wr_data;
+        cell_ra <= cellm[cell_aa];
+      end
+      always_ff @(posedge clk) begin
+        if (we_pt) ptm[pt_aa] <= wr_data[PT_DATA_W-1:0];
+        pt_ra <= ptm[pt_aa];
+      end
+      always_ff @(posedge clk) begin
+        dir_oka  <= int'(dir_addr[PA]) < ENV_NCELL;
+        cell_oka <= int'(cell_addr[PA]) < N_CELL;
+        pt_oka   <= int'(pt_addr[PA]) < N_PT;
+      end
+      assign dir_q[b][PA]  = dir_oka ? dir_ra : '0;
+      assign cell_q[b][PA] = cell_oka ? cell_ra : '0;
+      assign pt_q[b][PA]   = pt_oka ? pt_ra : '0;
+
+      if (PB < NRD) begin : g_pb
+        logic [15:0]          dir_rb;
+        logic [127:0]         cell_rb;
+        logic [PT_DATA_W-1:0] pt_rb;
+        logic                 dir_okb, cell_okb, pt_okb;
+        always_ff @(posedge clk) dir_rb <= dirm[dir_addr[PB]];
+        always_ff @(posedge clk) cell_rb <= cellm[cell_addr[PB][CA_W-1:0]];
+        always_ff @(posedge clk) pt_rb <= ptm[pt_addr[PB][PA_W-1:0]];
+        always_ff @(posedge clk) begin
+          dir_okb  <= int'(dir_addr[PB]) < ENV_NCELL;
+          cell_okb <= int'(cell_addr[PB]) < N_CELL;
+          pt_okb   <= int'(pt_addr[PB]) < N_PT;
+        end
+        assign dir_q[b][PB]  = dir_okb ? dir_rb : '0;
+        assign cell_q[b][PB] = cell_okb ? cell_rb : '0;
+        assign pt_q[b][PB]   = pt_okb ? pt_rb : '0;
+      end
+
+`ifndef SYNTHESIS
+      logic [31:0]     th[HDR_WORDS];
+      logic [PT_W-1:0] tx[N_PT], ty[N_PT], tz[N_PT];
+      initial begin
+        string pre;
+        for (int i = 0; i < HDR_WORDS; ++i) th[i] = '0;
+        for (int i = 0; i < ENV_NCELL; ++i) dirm[i] = '0;
+        if ($value$plusargs(b == 0 ? "env0=%s" : "env1=%s", pre)) begin
+          $readmemh({pre, "_hdr.hex"}, th);
+          $readmemh({pre, "_dir.hex"}, dirm);
+          if (th[2] != 0) $readmemh({pre, "_cell.hex"}, cellm, 0, int'(th[2]) - 1);
+          if (th[1] != 0) begin
+            $readmemh({pre, "_ptx.hex"}, tx, 0, int'(th[1]) - 1);
+            $readmemh({pre, "_pty.hex"}, ty, 0, int'(th[1]) - 1);
+            $readmemh({pre, "_ptz.hex"}, tz, 0, int'(th[1]) - 1);
+            for (int i = 0; i < int'(th[1]); ++i) ptm[i] = {tz[i], ty[i], tx[i]};
+          end
+        end
+      end
+`endif
     end
 
 `ifndef SYNTHESIS
-    logic [PT_W-1:0] tx[N_PT], ty[N_PT], tz[N_PT];
     initial begin
       string pre;
       for (int i = 0; i < HDR_WORDS; ++i) hdr[i] = '0;
-      for (int i = 0; i < ENV_NCELL; ++i) dirm[i] = '0;
       if ($value$plusargs(b == 0 ? "env0=%s" : "env1=%s", pre)) begin
         $readmemh({pre, "_hdr.hex"}, hdr);
-        $readmemh({pre, "_dir.hex"}, dirm);
-        if (hdr[2] != 0) $readmemh({pre, "_cell.hex"}, cellm, 0, int'(hdr[2]) - 1);
-        if (hdr[1] != 0) begin
-          $readmemh({pre, "_ptx.hex"}, tx, 0, int'(hdr[1]) - 1);
-          $readmemh({pre, "_pty.hex"}, ty, 0, int'(hdr[1]) - 1);
-          $readmemh({pre, "_ptz.hex"}, tz, 0, int'(hdr[1]) - 1);
-          for (int i = 0; i < int'(hdr[1]); ++i) ptm[i] = {tz[i], ty[i], tx[i]};
-        end
         $display("[cse_env_mem] buf%0d <- %s: %0d points, %0d cells", b, pre, hdr[1], hdr[2]);
       end
     end

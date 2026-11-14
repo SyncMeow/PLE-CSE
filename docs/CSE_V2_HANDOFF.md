@@ -1,4 +1,4 @@
-# CSE v2 發包說明（草稿，2026-11-13）
+# CSE v2 發包說明（草稿，2026-11-14 更新）
 
 給 CSE 作者。說明 v2 對 CSE 的影響：**哪些已經改了（你不用動）、哪些是建議你改的、怎麼驗收**。
 背景與整體計畫見 `docs/V2_PLAN.md`。
@@ -20,9 +20,20 @@ branch `feature/v2-align-preprocessing`。
 | 目錄位址寬度 `DIR_AW` | 13 | 15 | `dir_addr = (gz·32 + gy)·32 + gx`，最大 32767 |
 | 目錄項數 `ENV_NCELL` | 8,000 | 32,768 | 只影響記憶體 |
 | 環境 buffer 數 | 固定 2 | `cse_env_mem` 參數 `N_BUF`，預設 1 | 埠不變。`N_BUF = 1` 時 `hdr_valid[1] = 0`，所以 `q_env_buf = 1` 的查詢會回 ERROR（`cse_cu.sv:158` 現有的邏輯） |
+| 環境記憶體的份數 | 每個 CU 各一份 | 每兩個 CU 共用一份（true dual-port），份數 = ⌈N_CU / 2⌉ | 埠與延遲不變，CU 仍然各有一組讀取埠。多了一條寫入規則，見 1.1 |
 | golden 的環境 | 方塊剔除、floor | 徑向剔除、向零截斷（和前處理相同） | trace 的內容全部不同，格式相同 |
 
 球心的範圍：約 32768 ± 22000，半徑最大 8192。`cx ± r` 仍在 19 bit 有號數內（獨立審查逐項檢查過 `cse_cu.sv` 的寬度）。
+
+### 1.1 兩個 CU 共用一份環境記憶體（2026-11-14）
+
+`cse_env_mem` 內部每張表（DIR、CELL、PTS）改成 true dual-port：port A 接第 2c 個 CU（或寫入），port B 接第 2c+1 個 CU。
+
+- **CSE 核心（`cse_top`、`cse_cu`）沒有改**，I3 的埠、`ENV_RD_LAT` = 1、超出深度讀到 0 都相同。
+- 效果（OOC 合成，N_CU = 2）：環境記憶體 80 → 40 個 RAMB36，`ple_cse_top` 合計 101 → 61 個。
+- **新的寫入規則**：寫表的那個 cycle 會佔用該表的 port A，偶數編號的 CU 在那個 cycle 讀到的資料未定義。載入的順序必須是：HDR valid 清成 0 → 等 `cse_idle` → 寫表 → valid 設回 1。原因是 `cse_cu.sv:158` 只在查詢進入 CU 時檢查一次 valid，已在途的查詢還會讀表。valid = 1 時寫表，模擬會報 `table written while valid`。
+- **對你的測試的影響**：直接用階層路徑寫記憶體的 testbench 要改路徑。`dirm`、`cellm`、`ptm` 從 `g_buf[b]` 移到 `g_buf[b].g_cp[c]`（每份一個），`hdr` 仍在 `g_buf[b]`。`tb/tb_cse_array_worst.sv` 我們已經改成寫入兩份（巨集 `ENV_SET`，只適用 N_CU = 4），請你確認。
+- 如果你要換掉 `cse_env_mem` 的內部實作，請保留「每兩組讀取埠共用一份」，否則 BRAM 會再變成兩倍。
 
 `docs/CSE_GUIDE.md`（126–127 行）和 `docs/CSE_SPEC.md`（167 行）還寫著舊的原點與 20 格。這兩份是你的文件，我們沒有改。
 
@@ -72,7 +83,7 @@ C1–C3 都不應該改變任何查詢的結果，只影響面積。
 
 ## 5. 驗收條件（如果你做了第 3 節的修改）
 
-1. `bash scripts/sim_regress.sh` 最後一行 `10/10 passed`。它包含 `test-cse`（trace 重播 N_CU = 1、2、3、4、8，kill、control、worst、boundary、單元測試、比較器 mutant）和 `test-ple-cse NCU=2`。
+1. `bash scripts/sim_regress.sh` 最後一行 `10/10 passed`（`test-env-mem` 現在也檢查所有讀取埠同時讀、寫入期間的讀取、以及 valid 時寫表會被報出）。它包含 `test-cse`（trace 重播 N_CU = 1、2、3、4、8，kill、control、worst、boundary、單元測試、比較器 mutant）和 `test-ple-cse NCU=2`。
 2. 另外跑 `make -C accel test-ple-cse NCU=1` 和 `NCU=4`。
 3. `make lint` 沒有 warning。
 4. `ple_cse_top` OOC 合成（`accel/scripts/ooc_impl_plecse.tcl`，13.333 ns，N_CU = 2），附上階層報告裡 `u_cse` 的 LUT / FF / DSP 前後對照。
@@ -80,5 +91,5 @@ C1–C3 都不應該改變任何查詢的結果，只影響面積。
 
 ## 6. 還沒定的事
 
-- 前處理的記憶體目前每塊只有一個讀取埠；每個 CU 一組讀取埠的需求還沒和前處理作者談。
+- 前處理的記憶體目前每塊只有一個讀取埠。1.1 的共用做法（建表完成後把兩個 port 分給兩個 CU）已經在 `cse_env_mem` 上驗證，但還沒和前處理作者談怎麼套到他的記憶體上。
 - 第 2 節的轉接與測試模型尚未實作，實作後這份文件會更新。

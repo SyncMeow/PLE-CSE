@@ -1,4 +1,6 @@
 // Full-array legal PT_DEPTH stress: R_MAX, 729 voxels, 256 outside-sphere cells, 16384 points.
+// backdoor write to both memory copies of buffer 0 (N_CU = 4: two copies, cse_env_mem g_cp)
+`define ENV_SET(mem, i, v) begin dut.u_env_mem.g_buf[0].g_cp[0].mem[i] = v; dut.u_env_mem.g_buf[0].g_cp[1].mem[i] = v; end
 module tb_cse_array_worst;
   import ple_cse_pkg::*;
 
@@ -54,7 +56,7 @@ module tb_cse_array_worst;
 
     // Let cse_env_mem's simulation initializer finish, then build a valid dense image in buffer zero.
     #1;
-    for (int d = 0; d < ENV_NCELL; ++d) dut.u_env_mem.g_buf[0].dirm[d] = '0;
+    for (int d = 0; d < ENV_NCELL; ++d) `ENV_SET(dirm, d, '0)
     slot = 0;
     base = 0;
     glo_x = 65535; glo_y = 65535; glo_z = 65535;
@@ -76,16 +78,16 @@ module tb_cse_array_worst;
           if (distance2 > 64'd67108864 && slot < 256) begin
             off_x = px - org_x; off_y = py - org_y; off_z = pz - org_z;
             index = (gz * ENV_G + gy) * ENV_G + gx;
-            dut.u_env_mem.g_buf[0].dirm[index] = 16'h8000 | 16'(slot);
+            `ENV_SET(dirm, index, 16'h8000 | 16'(slot))
             cell_word = '0;
             cell_word.base = PT_AW'(base);
             cell_word.count = COUNT_W'(64);
             cell_word.lo_x = AOFF_W'(off_x); cell_word.hi_x = AOFF_W'(off_x);
             cell_word.lo_y = AOFF_W'(off_y); cell_word.hi_y = AOFF_W'(off_y);
             cell_word.lo_z = AOFF_W'(off_z); cell_word.hi_z = AOFF_W'(off_z);
-            dut.u_env_mem.g_buf[0].cellm[slot] = cell_word;
+            `ENV_SET(cellm, slot, cell_word)
             for (int p = 0; p < 64; ++p)
-              dut.u_env_mem.g_buf[0].ptm[base+p] = {16'(pz), 16'(py), 16'(px)};
+              `ENV_SET(ptm, base+p, {16'(pz), 16'(py), 16'(px)})
             base += 64;
             slot++;
             if (px < glo_x) glo_x = px; if (px > ghi_x) ghi_x = px;

@@ -35,7 +35,7 @@
 
 ## I3：環境記憶體埠（2026-11-08 決定）
 
-- **模組**：`rtl/cse/cse_env_mem.sv`（參數 `N_BUF`：1 = 單一 buffer（預設），2 = 雙緩衝；埠不變，`N_BUF = 1` 時 buffer 1 讀到 invalid 與 0）。它是 CSE 核心與記憶體之間的邊界，建構引擎之後也從這裡接入。內部是參考實作（一般陣列）；CSE 負責人可以改成分 bank 或複製的 BRAM，**但埠與延遲不可變**。
+- **模組**：`rtl/cse/cse_env_mem.sv`（參數 `N_BUF`：1 = 單一 buffer（預設），2 = 雙緩衝；埠不變，`N_BUF = 1` 時 buffer 1 讀到 invalid 與 0）。它是 CSE 核心與記憶體之間的邊界，建構引擎之後也從這裡接入。內部每張表存 ⌈NRD/2⌉ 份 true dual-port 記憶體，每兩組讀取埠共用一份（port A = 寫入或第 2c 組，port B = 第 2c+1 組）；**埠與延遲不可變**。
 - **層級**：`cse_env_mem` 不在 `cse_top` 內；`cse_top` 對外提供 N_CU 組讀取位址／資料及 header 介面。現有模擬由 `cse_system.sv` 在上一層連接 `cse_top` 與 `cse_env_mem`。
 - **讀取埠**：參數 `NRD` 組（每個 CU 一組），每組有三個獨立的同步讀取埠，每個 cycle 都可以同時讀：
   - DIR：`dir_addr[14:0]` → `dir_data[15:0]`
@@ -45,6 +45,7 @@
 - **延遲**：`ENV_RD_LAT` = 1。位址在第 t 個上升緣取樣，資料在第 t+1 個上升緣之後有效。超出深度的位址讀到 0。
 - **header**：兩份緩衝的 valid、err、點數、格數、全域 AABB 直接以暫存器輸出，讀取不需要等 cycle。
 - **深度**：CELL 1024 項、PTS 16384 點。全部 699 題的最大值是 651 格、11,670 點。格式欄位仍保留 12 bit / 16 bit。
+- **寫入規則**（2026-11-14）：寫入 DIR / CELL / PTS 的那個 cycle 會佔用該表每一份的 port A，偶數編號的讀取埠在那個 cycle 讀到的資料未定義。所以寫表的順序是：把該 buffer 的 HDR valid 清成 0 → **等 `cse_idle`**（valid 只在查詢進入 CU 時檢查一次，已在途的查詢還會讀表）→ 寫表 → 把 valid 設回 1。valid = 1 時寫表，模擬會報 `table written while valid`。HDR 是暫存器，隨時可寫。
 - **寫入埠**（建構引擎用，v1 模擬接 0）：`wr_en`、`wr_buf`、`wr_region`（HDR / DIR / CELL / PTS）、`wr_addr`、`wr_data[127:0]`。HDR 的 word 配置：0 `{err, valid}`、1 點數、2 格數、3–5 glo x/y/z、6–8 ghi x/y/z。
 - **模擬載入**：`+env0=<trace 前綴>`、`+env1=<前綴>`，讀 `<前綴>_{hdr,dir,cell,ptx,pty,ptz}.hex`（golden model `rrtc_fx -T` 產生）。
 - **驗證**：`make -C Platform/accel test-env-mem` 把兩份 trace 載入兩份緩衝，經由不同埠把每個位址讀回並和原檔比對，全部相同；對照組（第 1 份載入錯的 trace）報出 DIFF。

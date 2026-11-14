@@ -43,6 +43,7 @@ module tb_env_mem #(parameter int N_CELL = ple_cse_pkg::CELL_DEPTH, parameter in
   endtask
 
   string out;
+  int bw;
   int fd, fc, fx, fy, fz;
 
   // buffer b is read through port p = 2b (DIR, CELL) and 2b+1 (PTS); one address per cycle, latency 1
@@ -94,14 +95,120 @@ module tb_env_mem #(parameter int N_CELL = ple_cse_pkg::CELL_DEPTH, parameter in
     if (bad != 0) $fatal(1, "TB absent buffer is visible");
   endtask
 
+  // reference copy of buffer b, loaded from the same files as the memory
+  logic [31:0]          r_hdr [2][HDR_WORDS];
+  logic [15:0]          r_dir [2][ENV_NCELL];
+  logic [127:0]         r_cell[2][N_CELL];
+  logic [PT_DATA_W-1:0] r_pt  [2][N_PT];
+  task automatic load_ref(input int b);
+    string pre;
+    logic [31:0] h[HDR_WORDS];
+    logic [15:0] d[ENV_NCELL];
+    logic [127:0] c[N_CELL];
+    logic [PT_W-1:0] tx[N_PT], ty[N_PT], tz[N_PT];
+    if (!$value$plusargs(b == 0 ? "env0=%s" : "env1=%s", pre)) $fatal(1, "TB missing +env%0d", b);
+    $readmemh({pre, "_hdr.hex"}, h);
+    $readmemh({pre, "_dir.hex"}, d);
+    $readmemh({pre, "_cell.hex"}, c, 0, int'(h[2]) - 1);
+    $readmemh({pre, "_ptx.hex"}, tx, 0, int'(h[1]) - 1);
+    $readmemh({pre, "_pty.hex"}, ty, 0, int'(h[1]) - 1);
+    $readmemh({pre, "_ptz.hex"}, tz, 0, int'(h[1]) - 1);
+    for (int i = 0; i < HDR_WORDS; ++i) r_hdr[b][i] = h[i];
+    for (int i = 0; i < ENV_NCELL; ++i) r_dir[b][i] = d[i];
+    for (int i = 0; i < int'(h[2]); ++i) r_cell[b][i] = c[i];
+    for (int i = 0; i < int'(h[1]); ++i) r_pt[b][i] = {tz[i], ty[i], tx[i]};
+  endtask
+
+  // every port reads all three tables in the same cycle, each port at a different address
+  task automatic ports(input int b, input string tag);
+    int bad = 0, n = 0, nc = int'(r_hdr[b][2]), np = int'(r_hdr[b][1]);
+    int da[NRD], ca[NRD], pa[NRD];
+    for (int p = 0; p < NRD; ++p) rd_buf[p] = b[0];
+    for (int i = 0; i < ENV_NCELL; ++i) begin
+      for (int p = 0; p < NRD; ++p) begin
+        da[p] = (i + p * 8191) % ENV_NCELL; ca[p] = (i + p * 37) % nc; pa[p] = (i * 3 + p * 1021) % np;
+        dir_addr[p] = DIR_AW'(da[p]); cell_addr[p] = SLOT_W'(ca[p]); pt_addr[p] = PT_AW'(pa[p]);
+      end
+      @(posedge clk); #1;
+      for (int p = 0; p < NRD; ++p) begin
+        n += 3;
+        if (dir_data[p] !== r_dir[b][da[p]]) bad++;
+        if (cell_data[p] !== r_cell[b][ca[p]]) bad++;
+        if (pt_data[p] !== r_pt[b][pa[p]]) bad++;
+      end
+    end
+    $display("TB buf%0d ports %s checked=%0d port_errors=%0d", b, tag, n, bad);
+    if (bad != 0) $fatal(1, "TB port read mismatch");
+  endtask
+
+  task automatic wr(input int b, input env_region_e rg, input int a, input logic [127:0] d);
+    @(negedge clk);
+    wr_en = 1'b1; wr_buf = b[0]; wr_region = rg; wr_addr = PT_AW'(a); wr_data = d;
+  endtask
+
+  // while a write is on the port: every port reads the other tables, odd ports also read the written table
+  int side_n = 0, side_bad = 0;
+  task automatic side(input int b, input env_region_e rg, input int i);
+    int nc = int'(r_hdr[b][2]), np = int'(r_hdr[b][1]);
+    int da[NRD], ca[NRD], pa[NRD];
+    for (int p = 0; p < NRD; ++p) begin                      // never the address written in this cycle
+      da[p] = ((i * 163) % ENV_NCELL + 1 + p * 11) % ENV_NCELL; ca[p] = ((i * 5) % nc + 1 + p) % nc;
+      pa[p] = ((i * 61) % np + 1 + p) % np;
+      rd_buf[p] = b[0]; dir_addr[p] = DIR_AW'(da[p]); cell_addr[p] = SLOT_W'(ca[p]); pt_addr[p] = PT_AW'(pa[p]);
+    end
+    @(posedge clk); #1;
+    for (int p = 0; p < NRD; ++p) begin
+      if (rg != ENV_DIR || p % 2 == 1) begin side_n++; if (dir_data[p] !== r_dir[b][da[p]]) side_bad++; end
+      if (rg != ENV_CELL || p % 2 == 1) begin side_n++; if (cell_data[p] !== r_cell[b][ca[p]]) side_bad++; end
+      if (rg != ENV_PTS || p % 2 == 1) begin side_n++; if (pt_data[p] !== r_pt[b][pa[p]]) side_bad++; end
+    end
+  endtask
+
+  // write new words through the write port (header invalid meanwhile); every port must see them
+  task automatic rewrite(input int b);
+    int nc = int'(r_hdr[b][2]), np = int'(r_hdr[b][1]);
+    side_n = 0; side_bad = 0;
+    wr(b, ENV_HDR, 0, '0);
+    for (int i = 0; i < 200; ++i) begin
+      int da = (i * 163) % ENV_NCELL, ca = (i * 5) % nc, pa = (i * 61) % np;
+      wr(b, ENV_DIR, da, 128'(16'(i * 257 + 1)));
+      side(b, ENV_DIR, i);
+      r_dir[b][da] = 16'(i * 257 + 1);
+      wr(b, ENV_CELL, ca, {4{32'(i) ^ 32'hA5C3_0F96}});
+      side(b, ENV_CELL, i);
+      r_cell[b][ca] = {4{32'(i) ^ 32'hA5C3_0F96}};
+      wr(b, ENV_PTS, pa, 128'({3{16'(i + 7)}}));
+      side(b, ENV_PTS, i);
+      r_pt[b][pa] = PT_DATA_W'({3{16'(i + 7)}});
+    end
+    wr(b, ENV_HDR, 0, 128'(r_hdr[b][0]));
+    @(negedge clk);
+    wr_en = 1'b0; wr_buf = 1'b0;
+    $display("TB buf%0d reads during writes checked=%0d port_errors=%0d", b, side_n, side_bad);
+    if (side_bad != 0) $fatal(1, "TB read during write mismatch");
+  endtask
+
   initial begin
     if (!$value$plusargs("out=%s", out)) out = ".";
     rd_buf = '0; dir_addr = '0; cell_addr = '0; pt_addr = '0;
     @(posedge clk);
-    if (N_BUF == 1) write_absent();
-    dump(0);
-    if (N_BUF == 2) dump(1);
-    else absent(1);
+    if ($value$plusargs("bad_write=%d", bw)) begin            // table write while valid (bw = region + 4 * buffer)
+      wr(bw / 4, env_region_e'(bw % 4), 3, 128'd1);
+      @(negedge clk); wr_en = 1'b0;
+      @(negedge clk);
+      $display("TB bad_write not caught");
+    end else begin
+      if (N_BUF == 1) write_absent();
+      dump(0);
+      if (N_BUF == 2) dump(1);
+      else absent(1);
+      for (int b = 0; b < N_BUF; ++b) begin
+        load_ref(b);
+        ports(b, "loaded");
+        rewrite(b);
+        ports(b, "rewritten");
+      end
+    end
     $finish;
   end
 
