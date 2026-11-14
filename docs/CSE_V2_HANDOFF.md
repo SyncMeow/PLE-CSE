@@ -1,4 +1,4 @@
-# CSE v2 發包說明（草稿，2026-11-14 更新）
+# CSE v2 發包說明（草稿，2026-11-14 第二次更新）
 
 給 CSE 作者。說明 v2 對 CSE 的影響：**哪些已經改了（你不用動）、哪些是建議你改的、怎麼驗收**。
 背景與整體計畫見 `docs/V2_PLAN.md`。
@@ -11,7 +11,7 @@
 
 ## 1. 已經生效的變更（你不用改，但要知道）
 
-branch `feature/v2-align-preprocessing`。
+branch `feature/v2-align-preprocessing`（commit `4073cdf` 之後）。從 v1 到現在的完整變更見 `docs/V2_CHANGES.md`。
 
 | 項目 | 以前 | 現在 | 對 CSE 的影響 |
 |---|---|---|---|
@@ -34,6 +34,13 @@ branch `feature/v2-align-preprocessing`。
 - **新的寫入規則**：寫表的那個 cycle 會佔用該表的 port A，偶數編號的 CU 在那個 cycle 讀到的資料未定義。載入的順序必須是：HDR valid 清成 0 → 等 `cse_idle` → 寫表 → valid 設回 1。原因是 `cse_cu.sv:158` 只在查詢進入 CU 時檢查一次 valid，已在途的查詢還會讀表。valid = 1 時寫表，模擬會報 `table written while valid`。
 - **對你的測試的影響**：直接用階層路徑寫記憶體的 testbench 要改路徑。`dirm`、`cellm`、`ptm` 從 `g_buf[b]` 移到 `g_buf[b].g_cp[c]`（每份一個），`hdr` 仍在 `g_buf[b]`。`tb/tb_cse_array_worst.sv` 我們已經改成寫入兩份（巨集 `ENV_SET`，只適用 N_CU = 4），請你確認。
 - 如果你要換掉 `cse_env_mem` 的內部實作，請保留「每兩組讀取埠共用一份」，否則 BRAM 會再變成兩倍。
+
+### 1.2 PLE 這邊的兩個變更（CSE 不用改）
+
+- **PLE 只接受目前 tag 的 ERROR**（commit `ed06a1f`）。以前任何 tag 的 ERROR 都會結束目前的邊；現在已結束的邊晚到的 ERROR 會被丟掉。CSE 的行為不用變：header invalid 或 err 時查詢照常回 ERROR，`cse_err` 照常記錄。
+- **SCU 加了列過濾**（commit `a642315`）。和 CSE 無關，但姿態後端變快了，CSE 收到查詢的節奏會比較密（查詢的內容與總數的規則不變）。
+
+目前的 OOC 佈線結果（N_CU = 2，75 MHz）：28,905 LUT / 61 RAMB36 + 10 RAMB18 / 140 DSP，WNS +0.737 ns。
 
 `docs/CSE_GUIDE.md`（126–127 行）和 `docs/CSE_SPEC.md`（167 行）還寫著舊的原點與 20 格。這兩份是你的文件，我們沒有改。
 
@@ -70,7 +77,7 @@ branch `feature/v2-align-preprocessing`。
 | C1 | CU 內兩個深度 2 的 FIFO 不要攜帶整份 `cse_ctx_t`（每筆約 270 bit）。context 在一筆查詢內不變，可以放在 CU 的暫存器，FIFO 只傳會變的欄位（格座標、目錄位址、base、count） | 每個 CU 約 −0.7k LUT | CU 是否一次只處理一筆查詢；若有兩筆交疊，context 要存幾份 |
 | C2 | `KILL_GEN_W` 32 → 8 左右 | context 與 query FIFO 的 FF、比較器變小 | generation 回繞時不會誤判（在途查詢數遠小於 2⁸ 即可） |
 | C3 | `N_BUF = 1` 之後，`mem_rd_buf`、`ctx.env_buf`、`hdr_*[1]` 的選擇邏輯可以拿掉 | 少量 | 之後是否還要支援雙緩衝（大板子設定可能會用） |
-| C4 | `q_ready` 在組合邏輯上依賴當 cycle 的 K（`records/20261110`：N_CU = 2 的最差路徑，24 級） | 改成暫存器輸出可改善 timing | 是否影響 P2（K 握手當下已在 Q 上等待的查詢照常送完） |
+| C4 | `q_ready` 在組合邏輯上依賴當 cycle 的 K（`records/20261110`：N_CU = 2 的最差路徑，24 級） | 改成暫存器輸出可改善 timing | 是否影響 P2（K 握手當下已在 Q 上等待的查詢照常送完）。註：這條路徑在 v1 和共用記憶體後都是最差路徑（+0.433、+0.415 ns）；最新一次佈線的最差路徑換成 PLE 的 SCU 內部（+0.737 ns），這條路徑的餘量沒有重新查 |
 
 C1–C3 都不應該改變任何查詢的結果，只影響面積。
 
