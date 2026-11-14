@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 496" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#000"/>
+    </marker>
+  </defs>
+  <rect y="0" width="1240" height="496" fill="#fff"/>
+  <rect x="40" y="10" width="1160" height="52" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5"/>
+  <text x="620.0" y="33.1" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">TREE port B</text>
+  <text x="620.0" y="51.1" text-anchor="middle" font-size="13" fill="#000">row r: lane l holds node 4r + l</text>
+  <rect x="1060" y="78" width="140" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1130.0" y="95.25" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">query q</text>
+  <text x="1130.0" y="112.25" text-anchor="middle" font-size="12" fill="#000">held</text>
+  <polyline points="1060,98 110,98" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <rect x="40" y="128" width="260" height="206" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <polyline points="96,62 96,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="39.099999999999994" y="73" width="48.900000000000006" height="18" fill="#fff"/>
+  <text x="88" y="86" text-anchor="end" font-size="13" fill="#000">lane 0</text>
+  <polyline points="152,98 152,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)" stroke-dasharray="5 3"/>
+  <text x="288" y="152" text-anchor="end" font-size="17" font-weight="bold" fill="#000">PE0</text>
+  <rect x="66" y="142" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="124" y="168" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">q − p  ×7</text>
+  <polyline points="124,182 124,202" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="66" y="202" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="124" y="228" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">( )²  ×7</text>
+  <polyline points="124,242 124,262" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="66" y="262" width="116" height="50" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="124" y="284" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">adder tree</text>
+  <text x="124" y="302" text-anchor="middle" font-size="12" fill="#000">7 → 1</text>
+  <polyline points="182,287 236,287" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="262" y="292" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">d²</text>
+  <polyline points="262,300 262,334" fill="none" stroke="#000" stroke-width="1.5"/>
+  <rect x="340" y="128" width="260" height="206" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <polyline points="396,62 396,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="339.1" y="73" width="48.900000000000006" height="18" fill="#fff"/>
+  <text x="388" y="86" text-anchor="end" font-size="13" fill="#000">lane 1</text>
+  <polyline points="452,98 452,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)" stroke-dasharray="5 3"/>
+  <text x="588" y="152" text-anchor="end" font-size="17" font-weight="bold" fill="#000">PE1</text>
+  <rect x="366" y="142" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="424" y="168" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">q − p  ×7</text>
+  <polyline points="424,182 424,202" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="366" y="202" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="424" y="228" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">( )²  ×7</text>
+  <polyline points="424,242 424,262" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="366" y="262" width="116" height="50" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="424" y="284" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">adder tree</text>
+  <text x="424" y="302" text-anchor="middle" font-size="12" fill="#000">7 → 1</text>
+  <polyline points="482,287 536,287" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="562" y="292" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">d²</text>
+  <polyline points="562,300 562,334" fill="none" stroke="#000" stroke-width="1.5"/>
+  <rect x="640" y="128" width="260" height="206" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <polyline points="696,62 696,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="639.1" y="73" width="48.900000000000006" height="18" fill="#fff"/>
+  <text x="688" y="86" text-anchor="end" font-size="13" fill="#000">lane 2</text>
+  <polyline points="752,98 752,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)" stroke-dasharray="5 3"/>
+  <text x="888" y="152" text-anchor="end" font-size="17" font-weight="bold" fill="#000">PE2</text>
+  <rect x="666" y="142" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="724" y="168" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">q − p  ×7</text>
+  <polyline points="724,182 724,202" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="666" y="202" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="724" y="228" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">( )²  ×7</text>
+  <polyline points="724,242 724,262" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="666" y="262" width="116" height="50" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="724" y="284" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">adder tree</text>
+  <text x="724" y="302" text-anchor="middle" font-size="12" fill="#000">7 → 1</text>
+  <polyline points="782,287 836,287" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="862" y="292" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">d²</text>
+  <polyline points="862,300 862,334" fill="none" stroke="#000" stroke-width="1.5"/>
+  <rect x="940" y="128" width="260" height="206" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <polyline points="996,62 996,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="939.1" y="73" width="48.900000000000006" height="18" fill="#fff"/>
+  <text x="988" y="86" text-anchor="end" font-size="13" fill="#000">lane 3</text>
+  <polyline points="1052,98 1052,142" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)" stroke-dasharray="5 3"/>
+  <text x="1188" y="152" text-anchor="end" font-size="17" font-weight="bold" fill="#000">PE3</text>
+  <rect x="966" y="142" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1024" y="168" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">q − p  ×7</text>
+  <polyline points="1024,182 1024,202" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="966" y="202" width="116" height="40" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1024" y="228" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">( )²  ×7</text>
+  <polyline points="1024,242 1024,262" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="966" y="262" width="116" height="50" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1024" y="284" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">adder tree</text>
+  <text x="1024" y="302" text-anchor="middle" font-size="12" fill="#000">7 → 1</text>
+  <polyline points="1082,287 1136,287" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="1162" y="292" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">d²</text>
+  <polyline points="1162,300 1162,334" fill="none" stroke="#000" stroke-width="1.5"/>
+  <polyline points="262,334 262,350 382.0,350 382.0,364" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <polyline points="562,334 562,350 442.0,350 442.0,364" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="322.0" y="364" width="180" height="48" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="412.0" y="385.6" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">CMP</text>
+  <text x="412.0" y="402.6" text-anchor="middle" font-size="12" fill="#000">keep smaller (d², lane)</text>
+  <polyline points="862,334 862,350 982.0,350 982.0,364" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <polyline points="1162,334 1162,350 1042.0,350 1042.0,364" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="922.0" y="364" width="180" height="48" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="1012.0" y="385.6" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">CMP</text>
+  <text x="1012.0" y="402.6" text-anchor="middle" font-size="12" fill="#000">keep smaller (d², lane)</text>
+  <polyline points="412.0,412 412.0,428 682.0,428 682.0,442" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <polyline points="1012.0,412 1012.0,428 742.0,428 742.0,442" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="632.0" y="442" width="160" height="46" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="712.0" y="462.6" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">CMP</text>
+  <text x="712.0" y="479.6" text-anchor="middle" font-size="12" fill="#000">row minimum</text>
+  <polyline points="792.0,465 860,465" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="860" y="442" width="180" height="46" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="950.0" y="462.6" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">running min</text>
+  <text x="950.0" y="479.6" text-anchor="middle" font-size="12" fill="#000">CMP + register</text>
+  <polyline points="1040,465 1225,465" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="1050.35" y="445" width="163.3" height="18" fill="#fff"/>
+  <text x="1132" y="458" text-anchor="middle" font-size="13" font-weight="bold" fill="#000">(idx, d²) → Controller</text>
+</svg>

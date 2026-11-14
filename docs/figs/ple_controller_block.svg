@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 540" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#000"/>
+    </marker>
+  </defs>
+  <rect width="940" height="540" fill="#fff"/>
+
+  <!-- HIF (outside) -->
+  <rect x="5" y="75" width="70" height="350" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="40" y="255" text-anchor="middle" font-size="15" font-weight="bold">HIF</text>
+  <g stroke="#000" stroke-width="1.5">
+    <line x1="75" y1="105" x2="170" y2="105" marker-end="url(#a)"/>
+    <line x1="170" y1="150" x2="75" y2="150" marker-end="url(#a)"/>
+    <line x1="75" y1="380" x2="170" y2="380" marker-start="url(#a)" marker-end="url(#a)"/>
+  </g>
+  <g font-size="10" text-anchor="middle">
+    <text x="122" y="98">cfg, go, abort</text>
+    <text x="122" y="143">status, done, cnt</text>
+    <text x="122" y="373">pr_idx / pr_q</text>
+  </g>
+
+  <!-- Controller container -->
+  <rect x="150" y="15" width="570" height="490" fill="#dbe8fb" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="435" y="38" text-anchor="middle" font-size="20" font-weight="bold">Controller (ple_core)</text>
+
+  <!-- column A: control state -->
+  <g stroke="#000" stroke-width="1.5" fill="#fff">
+    <rect x="170" y="75" width="125" height="120"/>
+    <rect x="170" y="215" width="125" height="100"/>
+    <rect x="170" y="335" width="125" height="90"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="232" y="98" font-size="13" font-weight="bold">Run control</text>
+    <text x="232" y="116" font-size="10">go, abort_q, status</text>
+    <text x="232" y="132" font-size="10">iterations, edges,</text>
+    <text x="232" y="146" font-size="10">nn_queries, dd_rejects,</text>
+    <text x="232" y="160" font-size="10">poses</text>
+    <text x="232" y="240" font-size="13" font-weight="bold">Tree state</text>
+    <text x="232" y="258" font-size="10">n_t[0..1], a_sel</text>
+    <text x="232" y="274" font-size="10">balance: ratio · na</text>
+    <text x="232" y="360" font-size="13" font-weight="bold">Path buffer</text>
+    <text x="232" y="378" font-size="10">path_mem[PATH_CAP]</text>
+    <text x="232" y="394" font-size="10">path_len</text>
+  </g>
+
+  <!-- column B: datapath -->
+  <g stroke="#000" stroke-width="1.5" fill="#fff">
+    <rect x="315" y="75" width="150" height="110"/>
+    <rect x="315" y="205" width="150" height="75"/>
+    <rect x="315" y="300" width="150" height="60"/>
+    <rect x="315" y="380" width="150" height="70"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="390" y="96" font-size="13" font-weight="bold">Working registers</text>
+    <text x="390" y="114" font-size="10">q_s, qn, qnew, prior, oq</text>
+    <text x="390" y="128" font-size="10">ext, ovec (7 joints)</text>
+    <text x="390" y="142" font-size="10">nrad, nd2, od2</text>
+    <text x="390" y="156" font-size="10">k, n_ext, inc_h</text>
+    <text x="390" y="226" font-size="13" font-weight="bold">Pipelined multipliers</text>
+    <text x="390" y="244" font-size="10">32×32, 2-cycle</text>
+    <text x="390" y="258" font-size="10">7 × ext · range_h</text>
+    <text x="390" y="322" font-size="13" font-weight="bold">Distance² unit</text>
+    <text x="390" y="340" font-size="10">7 × (Δq)² and sum</text>
+    <text x="390" y="402" font-size="13" font-weight="bold">Backtrace buffers</text>
+    <text x="390" y="420" font-size="10">bt_a / bt_b chains</text>
+  </g>
+
+  <!-- A <-> B -->
+  <g stroke="#000" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)">
+    <line x1="295" y1="250" x2="315" y2="250"/>
+    <line x1="295" y1="410" x2="315" y2="410"/>
+  </g>
+
+  <!-- Main FSM -->
+  <rect x="495" y="75" width="205" height="395" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5"/>
+  <text x="597" y="94" text-anchor="middle" font-size="14" font-weight="bold">Main FSM (42 states)</text>
+  <g stroke="#000" stroke-width="1.5" fill="#fff">
+    <rect x="510" y="105" width="175" height="46"/>
+    <rect x="510" y="167" width="175" height="46"/>
+    <rect x="510" y="229" width="175" height="46"/>
+    <rect x="510" y="291" width="175" height="46"/>
+    <rect x="510" y="353" width="175" height="46"/>
+    <rect x="510" y="415" width="175" height="46"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="597" y="123" font-size="13" font-weight="bold">DIRECT</text><text x="597" y="138" font-size="10">try start → goal edge</text>
+    <text x="597" y="185" font-size="13" font-weight="bold">LOOP + BAL</text><text x="597" y="200" font-size="10">iteration limit, tree balance</text>
+    <text x="597" y="247" font-size="13" font-weight="bold">SAMPLE + NN</text><text x="597" y="262" font-size="10">sample, nearest, DD reject</text>
+    <text x="597" y="309" font-size="13" font-weight="bold">EXTEND</text><text x="597" y="324" font-size="10">clip to range, EVU, shrink, insert</text>
+    <text x="597" y="371" font-size="13" font-weight="bold">CONNECT</text><text x="597" y="386" font-size="10">step loop, EVU, insert</text>
+    <text x="597" y="433" font-size="13" font-weight="bold">BACKTRACE</text><text x="597" y="448" font-size="10">chains → path_mem</text>
+  </g>
+  <g stroke="#000" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="597" y1="151" x2="597" y2="167"/>
+    <line x1="597" y1="213" x2="597" y2="229"/>
+    <line x1="597" y1="275" x2="597" y2="291"/>
+    <line x1="597" y1="337" x2="597" y2="353"/>
+    <line x1="597" y1="399" x2="597" y2="415"/>
+  </g>
+
+  <!-- B <-> FSM -->
+  <g stroke="#000" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)">
+    <line x1="465" y1="130" x2="495" y2="130"/>
+    <line x1="465" y1="242" x2="495" y2="242"/>
+    <line x1="465" y1="330" x2="495" y2="330"/>
+    <line x1="465" y1="415" x2="495" y2="415"/>
+  </g>
+
+  <!-- FSM <-> run control bus, routed above the datapath -->
+  <polyline points="597,75 597,58 232,58 232,75" fill="none" stroke="#000" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text x="415" y="54" text-anchor="middle" font-size="10" display="none">state</text>
+
+  <!-- units (outside) -->
+  <g stroke="#000" stroke-width="1.5" fill="#fff">
+    <rect x="770" y="75" width="150" height="50"/>
+    <rect x="770" y="145" width="150" height="50"/>
+    <rect x="770" y="215" width="150" height="50"/>
+    <rect x="770" y="285" width="150" height="50"/>
+    <rect x="770" y="355" width="150" height="50"/>
+    <rect x="770" y="425" width="150" height="50"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="845" y="97" font-size="14" font-weight="bold">SMP</text><text x="845" y="113" font-size="10">init, take / q</text>
+    <text x="845" y="167" font-size="14" font-weight="bold">TREE</text><text x="845" y="183" font-size="10">wr, rd, rad, nn rows</text>
+    <text x="845" y="237" font-size="14" font-weight="bold">NNU</text><text x="845" y="253" font-size="10">start, q, n / idx, d²</text>
+    <text x="845" y="307" font-size="14" font-weight="bold">ISQRT</text><text x="845" y="323" font-size="10">x / root</text>
+    <text x="845" y="377" font-size="14" font-weight="bold">DIV7</text><text x="845" y="393" font-size="10">a, b / q</text>
+    <text x="845" y="447" font-size="14" font-weight="bold">EVU</text><text x="845" y="463" font-size="10">start, vec, len / ok, err</text>
+  </g>
+  <g stroke="#000" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)">
+    <line x1="700" y1="100" x2="770" y2="100"/>
+    <line x1="700" y1="170" x2="770" y2="170"/>
+    <line x1="700" y1="240" x2="770" y2="240"/>
+    <line x1="700" y1="310" x2="770" y2="310"/>
+    <line x1="700" y1="380" x2="770" y2="380"/>
+    <line x1="700" y1="450" x2="770" y2="450"/>
+  </g>
+</svg>

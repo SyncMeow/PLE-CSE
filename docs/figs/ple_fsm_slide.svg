@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 730" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs>
+<rect width="1150" height="730" fill="#fff"/>
+<rect x="20" y="70" width="200" height="56" rx="10" fill="#e6e6e6" stroke="#000" stroke-width="1.5"/>
+<text x="120.0" y="93" text-anchor="middle" font-size="15" font-weight="bold">IDLE</text>
+<text x="120.0" y="111" text-anchor="middle" font-size="12.5">wait for go; clear counters</text>
+<rect x="265" y="70" width="200" height="56" rx="10" fill="#dbe8fb" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="93" text-anchor="middle" font-size="15" font-weight="bold">D2, D2B, DSQ, DSQW</text>
+<text x="365.0" y="111" text-anchor="middle" font-size="12.5">d&#178; of start-goal, isqrt</text>
+<rect x="510" y="70" width="200" height="56" rx="10" fill="#dbe8fb" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="93" text-anchor="middle" font-size="15" font-weight="bold">DEVW</text>
+<text x="610.0" y="111" text-anchor="middle" font-size="12.5">EVU checks start→goal edge</text>
+<rect x="755" y="70" width="200" height="56" rx="10" fill="#dbe8fb" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="93" text-anchor="middle" font-size="15" font-weight="bold">INS0, INS1</text>
+<text x="855.0" y="111" text-anchor="middle" font-size="12.5">insert roots of tree 0 / 1</text>
+<rect x="755" y="180" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="203" text-anchor="middle" font-size="15" font-weight="bold">LOOP</text>
+<text x="855.0" y="221" text-anchor="middle" font-size="12.5">abort / max_iter test</text>
+<rect x="510" y="180" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="203" text-anchor="middle" font-size="15" font-weight="bold">MUL1, MUL2, BAL</text>
+<text x="610.0" y="221" text-anchor="middle" font-size="12.5">ratio·na, choose tree a</text>
+<rect x="265" y="180" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="203" text-anchor="middle" font-size="15" font-weight="bold">SAMPLE</text>
+<text x="365.0" y="221" text-anchor="middle" font-size="12.5">wait smp_valid, start NNU</text>
+<rect x="20" y="180" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="120.0" y="203" text-anchor="middle" font-size="15" font-weight="bold">NNA</text>
+<text x="120.0" y="221" text-anchor="middle" font-size="12.5">wait nnu_done</text>
+<rect x="20" y="290" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="120.0" y="313" text-anchor="middle" font-size="15" font-weight="bold">RDA, RDA2, DDM, MUL2</text>
+<text x="120.0" y="331" text-anchor="middle" font-size="12.5">read nearest, rad&#178;</text>
+<rect x="265" y="290" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="313" text-anchor="middle" font-size="15" font-weight="bold">DD</text>
+<text x="365.0" y="331" text-anchor="middle" font-size="12.5">DD reject: rad&#178; &lt; d&#178;</text>
+<rect x="510" y="290" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="313" text-anchor="middle" font-size="15" font-weight="bold">SQA</text>
+<text x="610.0" y="331" text-anchor="middle" font-size="12.5">wait isqrt (nd_h)</text>
+<rect x="755" y="290" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="313" text-anchor="middle" font-size="15" font-weight="bold">DIVE</text>
+<text x="855.0" y="331" text-anchor="middle" font-size="12.5">ext = d·range/nd_h (DIV7)</text>
+<rect x="265" y="400" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="423" text-anchor="middle" font-size="15" font-weight="bold">SHRINK (+MUL)</text>
+<text x="365.0" y="441" text-anchor="middle" font-size="12.5">shrink radius of near node</text>
+<rect x="510" y="400" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="423" text-anchor="middle" font-size="15" font-weight="bold">EVE, EVEW</text>
+<text x="610.0" y="441" text-anchor="middle" font-size="12.5">EVU checks extend edge</text>
+<rect x="755" y="400" width="200" height="56" rx="10" fill="#fff2cc" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="423" text-anchor="middle" font-size="15" font-weight="bold">INSN, MUL, GROW</text>
+<text x="855.0" y="441" text-anchor="middle" font-size="12.5">insert qnew, grow radius</text>
+<rect x="755" y="510" width="200" height="56" rx="10" fill="#d5ecd4" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="533" text-anchor="middle" font-size="15" font-weight="bold">CON, NNB, RDB, RDB2</text>
+<text x="855.0" y="551" text-anchor="middle" font-size="12.5">NNU in other tree, read</text>
+<rect x="510" y="510" width="200" height="56" rx="10" fill="#d5ecd4" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="533" text-anchor="middle" font-size="15" font-weight="bold">SQB, NEXT, INCH</text>
+<text x="610.0" y="551" text-anchor="middle" font-size="12.5">n_ext, inc_h (isqrt, DIV7)</text>
+<rect x="265" y="510" width="200" height="56" rx="10" fill="#d5ecd4" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="533" text-anchor="middle" font-size="15" font-weight="bold">STEP, STEPW</text>
+<text x="365.0" y="551" text-anchor="middle" font-size="12.5">step node k (DIV7)</text>
+<rect x="20" y="510" width="200" height="56" rx="10" fill="#d5ecd4" stroke="#000" stroke-width="1.5"/>
+<text x="120.0" y="533" text-anchor="middle" font-size="15" font-weight="bold">EVCW</text>
+<text x="120.0" y="551" text-anchor="middle" font-size="12.5">EVU checks step; insert</text>
+<rect x="20" y="620" width="200" height="56" rx="10" fill="#f8d7d3" stroke="#000" stroke-width="1.5"/>
+<text x="120.0" y="643" text-anchor="middle" font-size="15" font-weight="bold">BT_A, BT_A2, BT_B</text>
+<text x="120.0" y="661" text-anchor="middle" font-size="12.5">a-chain to root</text>
+<rect x="265" y="620" width="200" height="56" rx="10" fill="#f8d7d3" stroke="#000" stroke-width="1.5"/>
+<text x="365.0" y="643" text-anchor="middle" font-size="15" font-weight="bold">BT_B2, BT_W</text>
+<text x="365.0" y="661" text-anchor="middle" font-size="12.5">b-chain to root</text>
+<rect x="510" y="620" width="200" height="56" rx="10" fill="#f8d7d3" stroke="#000" stroke-width="1.5"/>
+<text x="610.0" y="643" text-anchor="middle" font-size="15" font-weight="bold">BT_W2</text>
+<text x="610.0" y="661" text-anchor="middle" font-size="12.5">copy nodes to path_mem</text>
+<rect x="755" y="620" width="200" height="56" rx="10" fill="#e6e6e6" stroke="#000" stroke-width="1.5"/>
+<text x="855.0" y="643" text-anchor="middle" font-size="15" font-weight="bold">DONE</text>
+<text x="855.0" y="661" text-anchor="middle" font-size="12.5">done pulse, status set</text>
+<polyline points="220,98 265,98" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="242" y="90" text-anchor="middle" font-size="11" fill="#000">go</text>
+<polyline points="465,98 510,98" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="487" y="90" text-anchor="middle" font-size="11" fill="#000">sq_done</text>
+<polyline points="710,98 755,98" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="90" text-anchor="middle" font-size="11" fill="#000">!edge_ok</text>
+<polyline points="855,126 855,180" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<polyline points="755,208 710,208" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="200" text-anchor="middle" font-size="11" fill="#000">run</text>
+<polyline points="510,208 465,208" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<polyline points="265,208 220,208" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="242" y="200" text-anchor="middle" font-size="11" fill="#000">smp_valid</text>
+<polyline points="120,236 120,290" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="125" y="268" text-anchor="start" font-size="11" fill="#000">nnu_done</text>
+<polyline points="220,318 265,318" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<polyline points="465,318 510,318" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="487" y="310" text-anchor="middle" font-size="11" fill="#000">keep</text>
+<polyline points="710,318 755,318" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="310" text-anchor="middle" font-size="11" fill="#000">nd_h &#8805; range</text>
+<polyline points="560,346 560,400" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="565" y="378" text-anchor="start" font-size="11" fill="#000">nd_h &lt; range</text>
+<polyline points="880,346 880,373 660,373 660,400" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="770" y="367" text-anchor="middle" font-size="11" fill="#000">dv_done</text>
+<polyline points="510,428 465,428" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="487" y="420" text-anchor="middle" font-size="11" fill="#000">!ok, DD</text>
+<polyline points="710,428 755,428" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="420" text-anchor="middle" font-size="11" fill="#000">ok</text>
+<polyline points="855,456 855,510" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<polyline points="755,538 710,538" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="530" text-anchor="middle" font-size="11" fill="#000">nnu_done</text>
+<polyline points="510,538 465,538" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="487" y="530" text-anchor="middle" font-size="11" fill="#000">n_ext &gt; 0</text>
+<polyline points="265,526 220,526" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<polyline points="220,552 265,552" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="242" y="566" text-anchor="middle" font-size="11" fill="#000">k &lt; n_ext</text>
+<polyline points="560,566 560,593 150,593 150,620" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="350" y="587" text-anchor="middle" font-size="11" fill="#000">n_ext = 0 (connected)</text>
+<polyline points="90,566 90,620" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="85" y="600" text-anchor="end" font-size="11" fill="#000">k = n_ext</text>
+<polyline points="220,648 265,648" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="242" y="640" text-anchor="middle" font-size="11" fill="#000">root</text>
+<polyline points="465,648 510,648" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="487" y="640" text-anchor="middle" font-size="11" fill="#000">ok</text>
+<polyline points="710,648 755,648" fill="none" stroke="#000" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="732" y="640" text-anchor="middle" font-size="11" fill="#000">bt_s = tot</text>
+<polyline points="610,70 610,42" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="618" y="54" text-anchor="start" font-size="12.5" fill="#b00">&#8594; DONE (edge ok / ENV_ERR)</text>
+<polyline points="955,208 995,208" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="1000" y="212" text-anchor="start" font-size="12.5" fill="#b00">&#8594; DONE (abort, max_iter)</text>
+<polyline points="955,428 995,428" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="1000" y="432" text-anchor="start" font-size="12.5" fill="#b00">&#8594; DONE (tree full)</text>
+<polyline points="365,676 365,706" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="365" y="722" text-anchor="middle" font-size="12.5" fill="#b00">&#8594; DONE (path too long)</text>
+<polyline points="170,510 170,482" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="200" y="476" text-anchor="middle" font-size="12.5" fill="#b00">&#8594; DONE (ENV_ERR / tree full)</text>
+<polyline points="555,456 555,486" fill="none" stroke="#1a5fb4" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="548" y="500" text-anchor="end" font-size="12.5" fill="#1a5fb4">&#8594; LOOP (!ok, DD off)</text>
+<polyline points="665,456 665,486" fill="none" stroke="#b00" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="672" y="500" text-anchor="start" font-size="12.5" fill="#b00">&#8594; DONE (ENV_ERR)</text>
+<polyline points="330,346 330,374" fill="none" stroke="#1a5fb4" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="330" y="392" text-anchor="middle" font-size="12.5" fill="#1a5fb4">&#8594; LOOP (DD reject)</text>
+<polyline points="365,456 365,486" fill="none" stroke="#1a5fb4" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="372" y="500" text-anchor="start" font-size="12.5" fill="#1a5fb4">&#8594; LOOP</text>
+<polyline points="60,510 60,482" fill="none" stroke="#1a5fb4" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="60" y="476" text-anchor="middle" font-size="12.5" fill="#1a5fb4">&#8594; LOOP (!ok)</text>
+<polyline points="955,648 995,648" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="1000" y="652" text-anchor="start" font-size="11" fill="#000">&#8594; IDLE</text>
+<rect x="20" y="16" width="16" height="16" rx="3" fill="#dbe8fb" stroke="#000"/><text x="42" y="29" font-size="14">DIRECT / init</text>
+<rect x="170" y="16" width="16" height="16" rx="3" fill="#fff2cc" stroke="#000"/><text x="192" y="29" font-size="14">EXTEND iteration</text>
+<rect x="320" y="16" width="16" height="16" rx="3" fill="#d5ecd4" stroke="#000"/><text x="342" y="29" font-size="14">CONNECT</text>
+<rect x="470" y="16" width="16" height="16" rx="3" fill="#f8d7d3" stroke="#000"/><text x="492" y="29" font-size="14">BACKTRACE</text>
+<rect x="620" y="16" width="16" height="16" rx="3" fill="#e6e6e6" stroke="#000"/><text x="642" y="29" font-size="14">IDLE / DONE</text>
+</svg>
