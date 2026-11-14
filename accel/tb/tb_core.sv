@@ -102,6 +102,17 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
   endfunction
   always @(posedge clk) if (rst_n && busy) begin bucket_e b; b = bucket(); bk[b] = bk[b] + 1; end
 
+  // ---- SCU trace (+scu_trace=<file>): one line per check: cycles from start to done, wait before start, collide, hit outer pairs
+  int scu_fd = 0, scu_t = 0, scu_w = 0;
+  always @(posedge clk) if (rst_n) begin
+    if (u_core.u_evu.c_scu && !u_core.u_evu.scu_start) scu_w <= scu_w + 1;
+    if (u_core.u_evu.scu_start) scu_t <= 1; else scu_t <= scu_t + 1;
+    if (u_core.u_evu.scu_done) begin
+      if (scu_fd != 0) $fdisplay(scu_fd, "%0d %0d %0d %h %0d", scu_t, scu_w, u_core.u_evu.scu_coll, u_core.u_evu.u_scu.hitm, u_core.u_evu.sp_pairs);
+      scu_w <= 0;
+    end
+  end
+
   task automatic check(input string what, input longint rtl, input longint gold);
     if (rtl != gold) begin
       if (errs < 20) $display("ERROR run %0d %s rtl=%0d golden=%0d", runs, what, rtl, gold);
@@ -181,6 +192,7 @@ module tb_core #(parameter bit FLAT = 1'b0, parameter bit AK = 1'b0, parameter i
   initial begin
     int nprob = 14, nseed = 2, iters = 3000, extra = 1, pfirst = 0, gfirst, glast, directed = (RANGE == (1 << 24) && CAP == 1024) ? 1 : 0;
     int plist[14] = '{1, 40, 100, 160, 210, 260, 320, 380, 410, 470, 530, 600, 650, 690};
+    begin string fn; if ($value$plusargs("scu_trace=%s", fn)) scu_fd = $fopen(fn, "w"); end
     void'($value$plusargs("perf=%d", perf));
     void'($value$plusargs("pfirst=%d", pfirst));
     void'($value$plusargs("cse_mode=%d", u_cse.mode));
